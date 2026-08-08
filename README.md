@@ -24,22 +24,33 @@ selže, tiše se ignoruje.
 
 ## Instalace
 
-Nejnovější `.exe` je na stránce [Releases](https://github.com/DarwinKhonus/Plan/releases/latest).
-Soubor je self-contained — stáhnete, spustíte, nic dalšího se neinstaluje.
+Ke každé verzi na stránce [Releases](https://github.com/DarwinKhonus/Plan/releases/latest)
+jsou dva soubory:
 
-Doporučený postup, aby aktualizace byla bezbolestná:
+| Soubor | Kdy ho použít |
+| --- | --- |
+| `Plan-X.Y.Z-setup.exe` | **Doporučeně.** Instalátor — vytvoří zástupce a zaregistruje odinstalaci. |
+| `Plan-X.Y.Z-win-x64.exe` | Přenosná varianta, když nechcete nic instalovat. Stačí spustit. |
 
-1. Vytvořte složku `%LocalAppData%\Programs\Plan`.
-2. Stažený soubor do ní uložte a **přejmenujte na `Plan.exe`** (bez čísla verze).
-3. Na `Plan.exe` klikněte pravým tlačítkem → *Odeslat* → *Plocha (vytvořit zástupce)*.
+Instalátor se ptá jen na to, jestli chcete zástupce na ploše. Instaluje se **pouze pro
+přihlášeného uživatele** do `%LocalAppData%\Programs\Plan`, takže nevyžaduje práva správce
+ani nezobrazí výzvu UAC.
 
-Aktualizace pak znamená stáhnout nový soubor a přepsat jím `Plan.exe`. Zástupce na ploše
-zůstane na svém místě, protože Windows si pozice ikon pamatuje podle názvu souboru —
-kdybyste `.exe` s číslem verze dávali přímo na plochu, každá verze by se objevila jako
-nová ikona na první volné pozici.
+### Aktualizace
 
-Databáze žije v `%AppData%\Plan\plan.db` mimo aplikaci, takže o data se při aktualizaci
-nedá přijít. Případné změny schématu se aplikují migracemi při prvním spuštění nové verze.
+Stáhněte nový `setup.exe` a spusťte ho přes stávající instalaci — nic není potřeba
+odinstalovávat. Aplikace přistane ve stejné složce pod stejným názvem, takže **zástupce
+na ploše zůstane na své pozici**. (Kdybyste místo instalátoru dávali přímo `.exe` s číslem
+verze na plochu, každá verze by se objevila jako nová ikona na první volné pozici —
+Windows si pozice pamatuje podle názvu souboru.)
+
+Pokud aplikace během aktualizace běží, instalátor nabídne její zavření.
+
+### Data
+
+Databáze žije v `%AppData%\Plan\plan.db` mimo instalační složku. Aktualizace ani
+odinstalace o ni nepřijde; případné změny schématu se aplikují migracemi při prvním
+spuštění nové verze. Kdo chce smazat i data, smaže složku `%AppData%\Plan` ručně.
 
 ## Sestavení
 
@@ -67,6 +78,7 @@ dotnet test Plan.Tests/Plan.Tests.csproj
 | `Plan` | WPF aplikace — okna, ViewModely, ovládací prvek časové osy, kontrola aktualizací |
 | `Plan.Data` | EF Core kontext, migrace, repozitáře a doménová logika (kolize, pracovní kalendář, svátky) |
 | `Plan.Tests` | xUnit testy doménové logiky a validací |
+| `installer` | Skript instalátoru pro Inno Setup 6 |
 
 Doménová logika záměrně žije v `Plan.Data` bez vazby na WPF, aby šla testovat bez UI.
 
@@ -93,9 +105,19 @@ git push origin v1.0.0
 ```
 
 Workflow sestaví Release build, spustí testy, vytvoří self-contained single-file `.exe`
-pro win-x64 a přiloží ho jako asset k GitHub Release. Číslo verze se z tagu propíše do
-`InformationalVersion` sestavení — právě podle něj pak běžící aplikace pozná, že vyšla
-novější verze.
+pro win-x64, zabalí ho instalátorem a obojí přiloží jako assety k GitHub Release. Číslo
+verze se z tagu propíše do `InformationalVersion` sestavení — právě podle něj pak běžící
+aplikace pozná, že vyšla novější verze.
+
+Instalátor jde sestavit i lokálně, když máte [Inno Setup 6](https://jrsoftware.org/isdl.php):
+
+```bash
+dotnet publish Plan/Plan.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+```
+
+```bash
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion=1.0.0 /DSourceExe=..\publish\Plan.exe installer\Plan.iss
+```
 
 ## Rozhodnutí, která stojí za zmínku
 

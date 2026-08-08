@@ -13,6 +13,10 @@
 # Skripty pro GitHub Actions (Linux i Windows runnery) musí zůstat LF.
 *.sh      text eol=lf
 
+# Inno Setup 6 čte .iss jako UTF-8 jen s BOM, jinak předpokládá systémovou ANSI
+# kódovou stránku a rozsype diakritiku. Proto se soubor nesmí normalizovat.
+*.iss     -text
+
 *.png     binary
 *.ico     binary
 *.exe     binary

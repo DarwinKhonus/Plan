@@ -9,6 +9,7 @@ zadani-plan.md
 [Ll]ogs/
 artifacts/
 publish/
+installer-output/
 
 ## Visual Studio
 .vs/

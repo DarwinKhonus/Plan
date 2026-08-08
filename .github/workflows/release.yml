@@ -55,7 +55,22 @@ jobs:
           -p:Version=${{ steps.verze.outputs.verze }}
           -o publish
 
-      - name: Pojmenovat výstup podle verze
+      # Inno Setup je na windows runnerech předinstalovaný jen občas, proto raději
+      # explicitně — chocolatey je tam vždy a instalace trvá pár sekund.
+      - name: Nainstalovat Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      # Pozor na zápis proměnné: $env:ProgramFiles(x86) se v PowerShellu neparsuje,
+      # závorky je nutné uzavřít do ${...}.
+      - name: Sestavit instalátor
+        shell: pwsh
+        run: >
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          /DAppVersion=${{ steps.verze.outputs.verze }}
+          /DSourceExe=..\publish\Plan.exe
+          installer\Plan.iss
+
+      - name: Pojmenovat přenosnou verzi podle verze
         shell: pwsh
         run: Move-Item publish/Plan.exe "publish/Plan-${{ steps.verze.outputs.verze }}-win-x64.exe"
 
@@ -66,10 +81,19 @@ jobs:
           tag_name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: publish/Plan-${{ steps.verze.outputs.verze }}-win-x64.exe
+          files: |
+            installer-output/Plan-${{ steps.verze.outputs.verze }}-setup.exe
+            publish/Plan-${{ steps.verze.outputs.verze }}-win-x64.exe
           body: |
             Verze **${{ steps.verze.outputs.verze }}** aplikace Plan pro Windows (64bit).
 
-            Stáhněte `Plan-${{ steps.verze.outputs.verze }}-win-x64.exe` a spusťte —
-            nic dalšího se neinstaluje. Data zůstávají v `%AppData%\Plan\plan.db`
-            a aktualizace o ně nepřijde.
+            **Doporučeně:** stáhněte `Plan-${{ steps.verze.outputs.verze }}-setup.exe`
+            a spusťte. Instaluje se jen pro přihlášeného uživatele, takže se neptá na
+            práva správce, a vytvoří zástupce v nabídce Start i na ploše. Aktualizace
+            stačí nainstalovat přes stávající verzi — zástupce na ploše zůstane na místě.
+
+            **Bez instalace:** `Plan-${{ steps.verze.outputs.verze }}-win-x64.exe` je
+            přenosná varianta, kterou stačí spustit.
+
+            Data v obou případech žijí v `%AppData%\Plan\plan.db` mimo aplikaci,
+            takže o ně aktualizace ani odinstalace nepřijde.
