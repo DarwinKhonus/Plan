@@ -12,7 +12,7 @@ kontakty ani obchodní historii.
 - **Časová osa** — řádek na zakázku, tažením pruhu se termín posune, tažením okraje se
   protáhne jen začátek nebo konec; změna se ukládá hned
 - **Detekce kolizí** — překrývající se zakázky se zvýrazní v ose i v tabulce a přepočítají
-  se při každé změně
+  se při každé změně; překryv pouze v nepracovní dny se za konflikt nepovažuje
 - **Pracovní doba** — nastavitelné pracovní dny, časový rozsah a zohlednění českých
   státních svátků; z toho se u každé zakázky dopočítá informativní odhad hodin
 - **Tabulkový výpis** — všechny zakázky seřazené podle termínu jako alternativa ke kalendáři
@@ -22,10 +22,24 @@ Data jsou v jediném souboru `%AppData%\Plan\plan.db` (SQLite). Aplikace nepotř
 server ani připojení k internetu; kontrola aktualizací je jediné, co jde ven, a když
 selže, tiše se ignoruje.
 
-## Stažení
+## Instalace
 
 Nejnovější `.exe` je na stránce [Releases](https://github.com/DarwinKhonus/Plan/releases/latest).
 Soubor je self-contained — stáhnete, spustíte, nic dalšího se neinstaluje.
+
+Doporučený postup, aby aktualizace byla bezbolestná:
+
+1. Vytvořte složku `%LocalAppData%\Programs\Plan`.
+2. Stažený soubor do ní uložte a **přejmenujte na `Plan.exe`** (bez čísla verze).
+3. Na `Plan.exe` klikněte pravým tlačítkem → *Odeslat* → *Plocha (vytvořit zástupce)*.
+
+Aktualizace pak znamená stáhnout nový soubor a přepsat jím `Plan.exe`. Zástupce na ploše
+zůstane na svém místě, protože Windows si pozice ikon pamatuje podle názvu souboru —
+kdybyste `.exe` s číslem verze dávali přímo na plochu, každá verze by se objevila jako
+nová ikona na první volné pozici.
+
+Databáze žije v `%AppData%\Plan\plan.db` mimo aplikaci, takže o data se při aktualizaci
+nedá přijít. Případné změny schématu se aplikují migracemi při prvním spuštění nové verze.
 
 ## Sestavení
 
@@ -90,7 +104,10 @@ novější verze.
 - **`DateOnly` místo `DateTime`** — termíny jsou v denní granularitě a časová složka by do
   detekce kolizí tahala chyby typu „23:59 vs 00:00".
 - **Dotyk termínů se počítá jako kolize** — když jedna zakázka končí 10. 3. a druhá 10. 3.
-  začíná, je to týž pracovní den.
+  začíná, je to týž pracovní den. Pokud ale společný den vyjde na víkend nebo svátek,
+  konflikt to není; termín je souvislý interval, ale pracuje se jen v pracovních dnech.
+- **Nepracovní dny se v pruhu ztmavují** místo přerušení pruhu — termín zůstane opticky
+  souvislý, ale je vidět, které dny se do odhadu hodin nepočítají.
 - **Časová osa se kreslí ručně** místo skládání z WPF prvků — při stovkách dnů × zakázek
   by byl vizuální strom zbytečně těžký a tažení okrajů by se stejně muselo psát ručně.
 - **Self-contained build** — uživatel nemusí řešit instalaci .NET runtime.

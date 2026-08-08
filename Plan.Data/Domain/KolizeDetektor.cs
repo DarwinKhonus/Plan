@@ -9,8 +9,8 @@ public static class KolizeDetektor
 {
     /// <summary>
     /// Překrývají se termíny? Intervaly jsou uzavřené na obou koncích, takže dotyk
-    /// konec-na-začátek (A končí 10. 3., B začíná 10. 3.) je kolize — oba dny padnou
-    /// na stejný den a uživatel by v ten den dělal na dvou zakázkách naráz.
+    /// konec-na-začátek (A končí 10. 3., B začíná 10. 3.) je překryv — oba dny padnou
+    /// na stejný den.
     /// </summary>
     public static bool SePrekryvaji(Zakazka a, Zakazka b) =>
         SePrekryvaji(a.DatumOd, a.DatumDo, b.DatumOd, b.DatumDo);
@@ -19,9 +19,34 @@ public static class KolizeDetektor
         aOd <= bDo && aDo >= bOd;
 
     /// <summary>
-    /// Id zakázek, které kolidují alespoň s jednou jinou. Zakázka sama se sebou nekoliduje.
+    /// Kolidují zakázky se zohledněním pracovních dnů? Překryv jen přes víkend nebo
+    /// svátek kolize není — uživatel v ten den stejně na žádné z nich nedělá.
+    /// Bez kalendáře se chová jako <see cref="SePrekryvaji(Zakazka, Zakazka)"/>.
     /// </summary>
-    public static HashSet<int> NajdiKolidujici(IEnumerable<Zakazka> zakazky)
+    public static bool Koliduji(Zakazka a, Zakazka b, PracovniKalendar? kalendar)
+    {
+        if (!SePrekryvaji(a, b))
+        {
+            return false;
+        }
+
+        if (kalendar is null)
+        {
+            return true;
+        }
+
+        var zacatekPrekryvu = a.DatumOd > b.DatumOd ? a.DatumOd : b.DatumOd;
+        var konecPrekryvu = a.DatumDo < b.DatumDo ? a.DatumDo : b.DatumDo;
+
+        return kalendar.ObsahujePracovniDen(zacatekPrekryvu, konecPrekryvu);
+    }
+
+    /// <summary>
+    /// Id zakázek, které kolidují alespoň s jednou jinou. Zakázka sama se sebou nekoliduje.
+    /// Když je předaný kalendář, započítají se jen překryvy v pracovních dnech.
+    /// </summary>
+    public static HashSet<int> NajdiKolidujici(
+        IEnumerable<Zakazka> zakazky, PracovniKalendar? kalendar = null)
     {
         // Řazení podle začátku umožní vnitřní smyčku ukončit, jakmile další zakázka
         // začíná po konci té aktuální — bez toho by to bylo vždy O(n²).
@@ -39,6 +64,11 @@ public static class KolizeDetektor
                 if (dalsi.DatumOd > aktualni.DatumDo)
                 {
                     break;
+                }
+
+                if (!Koliduji(aktualni, dalsi, kalendar))
+                {
+                    continue;
                 }
 
                 kolidujici.Add(aktualni.Id);

@@ -111,6 +111,101 @@ public class KolizeDetektorTests
         Assert.Empty(KolizeDetektor.NajdiKolidujici(zakazky));
     }
 
+    // --- Zohlednění pracovních dnů (Po–Pá, svátky nepracovní) ---
+
+    private static PracovniKalendar Kalendar() => new(new PracovniNastaveni());
+
+    [Fact]
+    public void Prekryv_jen_pres_vikend_neni_kolize()
+    {
+        // 8. a 9. 8. 2026 je sobota a neděle — v ty dny se na žádné z nich nedělá.
+        var a = Z(1, "2026-08-03", "2026-08-08");
+        var b = Z(2, "2026-08-08", "2026-08-14");
+
+        Assert.True(KolizeDetektor.SePrekryvaji(a, b));
+        Assert.False(KolizeDetektor.Koliduji(a, b, Kalendar()));
+    }
+
+    [Fact]
+    public void Prekryv_zasahujici_pracovni_den_je_kolize()
+    {
+        // Překryv 7.–10. 8. obsahuje pátek 7. 8. i pondělí 10. 8.
+        var a = Z(1, "2026-08-03", "2026-08-10");
+        var b = Z(2, "2026-08-07", "2026-08-14");
+
+        Assert.True(KolizeDetektor.Koliduji(a, b, Kalendar()));
+    }
+
+    [Fact]
+    public void Prekryv_jen_ve_svatek_neni_kolize()
+    {
+        // 28. 10. 2026 je středa, ale zároveň státní svátek.
+        var a = Z(1, "2026-10-26", "2026-10-28");
+        var b = Z(2, "2026-10-28", "2026-10-30");
+
+        Assert.False(KolizeDetektor.Koliduji(a, b, Kalendar()));
+    }
+
+    [Fact]
+    public void Prekryv_ve_svatek_je_kolize_kdyz_se_svatky_nezohlednuji()
+    {
+        var kalendar = new PracovniKalendar(new PracovniNastaveni { ZohlednitSvatky = false });
+        var a = Z(1, "2026-10-26", "2026-10-28");
+        var b = Z(2, "2026-10-28", "2026-10-30");
+
+        Assert.True(KolizeDetektor.Koliduji(a, b, kalendar));
+    }
+
+    [Fact]
+    public void Prekryv_pres_vikend_je_kolize_kdyz_se_o_vikendu_pracuje()
+    {
+        var kalendar = new PracovniKalendar(new PracovniNastaveni
+        {
+            PracovniDny = [.. Enum.GetValues<DayOfWeek>()],
+        });
+
+        var a = Z(1, "2026-08-03", "2026-08-08");
+        var b = Z(2, "2026-08-08", "2026-08-14");
+
+        Assert.True(KolizeDetektor.Koliduji(a, b, kalendar));
+    }
+
+    [Fact]
+    public void Bez_kalendare_se_chova_jako_drive()
+    {
+        var a = Z(1, "2026-08-03", "2026-08-08");
+        var b = Z(2, "2026-08-08", "2026-08-14");
+
+        Assert.True(KolizeDetektor.Koliduji(a, b, null));
+    }
+
+    [Fact]
+    public void NajdiKolidujici_s_kalendarem_vynecha_vikendovy_prekryv()
+    {
+        var zakazky = new[]
+        {
+            Z(1, "2026-08-03", "2026-08-08"),   // po–so
+            Z(2, "2026-08-08", "2026-08-14"),   // so–pá, překryv jen v sobotu
+            Z(3, "2026-08-12", "2026-08-20"),   // překryv se #2 ve všední dny
+        };
+
+        var kolidujici = KolizeDetektor.NajdiKolidujici(zakazky, Kalendar());
+
+        Assert.Equal(new HashSet<int> { 2, 3 }, kolidujici);
+    }
+
+    [Fact]
+    public void Zakazka_ciste_o_vikendu_nekoliduje_s_nicim()
+    {
+        var zakazky = new[]
+        {
+            Z(1, "2026-08-01", "2026-08-31"),   // celý srpen
+            Z(2, "2026-08-08", "2026-08-09"),   // jen sobota a neděle
+        };
+
+        Assert.Empty(KolizeDetektor.NajdiKolidujici(zakazky, Kalendar()));
+    }
+
     /// <summary>
     /// Vnořená zakázka končí dřív než ta předchozí. Kdyby se předčasné ukončení vnitřní
     /// smyčky řídilo koncem poslední porovnávané zakázky místo té aktuální, tenhle případ

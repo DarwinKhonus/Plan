@@ -225,6 +225,9 @@ public class MainViewModel : ObservableObject
     {
         await _nastaveniRepository.UlozAsync(nastaveni);
         Kalendar = new PracovniKalendar(nastaveni);
+
+        // Kolize závisí na pracovních dnech, takže změna nastavení je musí přepočítat taky.
+        PrepocitejKolize();
         PrepocitejHodiny();
     }
 
@@ -263,7 +266,8 @@ public class MainViewModel : ObservableObject
 
     private void PrepocitejKolize()
     {
-        var kolidujici = KolizeDetektor.NajdiKolidujici(Zakazky.Select(z => z.ToEntity()));
+        // S kalendářem, aby překryv jen přes víkend nebo svátek nehlásil konflikt.
+        var kolidujici = KolizeDetektor.NajdiKolidujici(Zakazky.Select(z => z.ToEntity()), Kalendar);
 
         foreach (var zakazka in Zakazky)
         {

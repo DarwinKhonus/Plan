@@ -43,6 +43,10 @@ public class CasovaOsa : FrameworkElement
     // Poloprůhledný, aby přes zvýrazněný řádek zůstalo vidět podbarvení víkendů a svátků.
     private static readonly Brush StetecVybranyRadek = Vytvor("#2E3B82C4");
 
+    // Ztmavení nepracovních dnů uvnitř pruhu. Termín je souvislý, ale z osy má být vidět,
+    // ve kterých dnech se na zakázce nepracuje.
+    private static readonly Brush StetecNepracovniVPruhu = Vytvor("#38000000");
+
     private static readonly Typeface Pismo = new("Segoe UI");
 
     private TazeniStav? _tazeni;
@@ -440,6 +444,7 @@ public class CasovaOsa : FrameworkElement
                 : zakazka.MaKolizi ? PeroPruhKolize : PeroPruh;
 
             dc.DrawRoundedRectangle(vypln, pero, obdelnik, 3, 3);
+            VykresliNepracovniDnyVPruhu(dc, zakazka, obdelnik);
 
             var popisek = zakazka.MaKolizi ? $"⚠ {zakazka.Nazev}" : zakazka.Nazev;
             var text = VytvorText(popisek, 11, StetecTextPruhu, FontWeights.Normal);
@@ -453,6 +458,40 @@ public class CasovaOsa : FrameworkElement
                 dc.DrawText(text, new Point(obdelnik.X + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2)));
             }
         }
+    }
+
+    /// <summary>
+    /// Ztmaví dny uvnitř pruhu, ve kterých se nepracuje. Pruh zůstává souvislý, protože
+    /// termín souvislý je — jen z něj má být poznat, které dny se do odhadu hodin nepočítají.
+    /// </summary>
+    private void VykresliNepracovniDnyVPruhu(DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik)
+    {
+        var kalendar = Kalendar;
+        if (kalendar is null)
+        {
+            return;
+        }
+
+        // Ořez podle tvaru pruhu, aby ztmavení nepřečnívalo přes zaoblené rohy.
+        var tvarPruhu = new RectangleGeometry(obdelnik, 3, 3);
+        tvarPruhu.Freeze();
+        dc.PushClip(tvarPruhu);
+
+        for (var den = zakazka.DatumOd; den <= zakazka.DatumDo; den = den.AddDays(1))
+        {
+            if (kalendar.JePracovniDen(den))
+            {
+                continue;
+            }
+
+            var x = (den.DayNumber - PrvniDen.DayNumber) * SirkaDne;
+            dc.DrawRectangle(
+                StetecNepracovniVPruhu,
+                null,
+                new Rect(x, obdelnik.Y, SirkaDne, obdelnik.Height));
+        }
+
+        dc.Pop();
     }
 
     private void VykresliDnesniDen(DrawingContext dc, double vyska)

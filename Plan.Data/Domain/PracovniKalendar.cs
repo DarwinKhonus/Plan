@@ -50,6 +50,23 @@ public class PracovniKalendar
         return pocet;
     }
 
+    /// <summary>
+    /// Je v intervalu aspoň jeden pracovní den? Končí u prvního nalezeného, takže se
+    /// nemusí projít celý rozsah jako u <see cref="PocetPracovnichDnu"/>.
+    /// </summary>
+    public bool ObsahujePracovniDen(DateOnly od, DateOnly doVcetne)
+    {
+        for (var den = od; den <= doVcetne; den = den.AddDays(1))
+        {
+            if (JePracovniDen(den))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /// <summary>Odhad pracovních hodin v intervalu = pracovní dny × hodin/den.</summary>
     public double OdhadHodin(DateOnly od, DateOnly doVcetne) =>
         PocetPracovnichDnu(od, doVcetne) * _nastaveni.HodinDenne;
