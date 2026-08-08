@@ -29,6 +29,7 @@ public class CasovaOsa : FrameworkElement
     private static readonly Brush StetecHlavicka = Vytvor("#FAFBFC");
     private static readonly Brush StetecText = Vytvor("#3C4653");
     private static readonly Brush StetecTextSlaby = Vytvor("#8A94A3");
+    private static readonly Brush StetecDnes = Vytvor("#E8590C");
     private static readonly Brush StetecPruh = Vytvor("#3B82C4");
     private static readonly Brush StetecPruhKolize = Vytvor("#C0392B");
     private static readonly Brush StetecTextPruhu = Brushes.White;
@@ -315,9 +316,12 @@ public class CasovaOsa : FrameworkElement
                 dc.DrawRectangle(StetecNepracovniDen, null, new Rect(x, VyskaHlavicky, SirkaDne, vyskaObsahu));
             }
 
-            // Začátek měsíce dostane výraznější linku, ať se v ose dá orientovat.
-            var pero = den.Day == 1 ? PeroMesic : PeroMrizka;
-            dc.DrawLine(pero, new Point(x + 0.5, 0), new Point(x + 0.5, vyska));
+            // Denní mřížka začíná až pod hlavičkou, jinak by přeškrtávala čísla dnů.
+            // Výjimkou je předěl měsíců, který odděluje i popisky v hlavičce.
+            var jeZacatekMesice = den.Day == 1;
+            var pero = jeZacatekMesice ? PeroMesic : PeroMrizka;
+            var horni = jeZacatekMesice ? 0 : VyskaHlavicky;
+            dc.DrawLine(pero, new Point(x + 0.5, horni), new Point(x + 0.5, vyska));
         }
 
         dc.DrawLine(PeroMesic, new Point(0, VyskaHlavicky + 0.5), new Point(sirka, VyskaHlavicky + 0.5));
@@ -359,14 +363,21 @@ public class CasovaOsa : FrameworkElement
         }
 
         // Pás s čísly dnů a zkratkou dne v týdnu.
+        var dnes = DateOnly.FromDateTime(DateTime.Today);
+
         for (var i = 0; i < PocetDnu; i++)
         {
             var den = PrvniDen.AddDays(i);
             var x = i * SirkaDne;
+            var jeDnes = den == dnes;
             var jeNepracovni = Kalendar is not null && !Kalendar.JePracovniDen(den);
-            var stetec = jeNepracovni ? StetecTextSlaby : StetecText;
 
-            var cislo = VytvorText(den.Day.ToString(kultura), 11, stetec, FontWeights.Normal);
+            var stetec = jeDnes
+                ? StetecDnes
+                : jeNepracovni ? StetecTextSlaby : StetecText;
+            var vaha = jeDnes ? FontWeights.Bold : FontWeights.Normal;
+
+            var cislo = VytvorText(den.Day.ToString(kultura), 11, stetec, vaha);
             if (cislo.Width <= SirkaDne)
             {
                 dc.DrawText(cislo, new Point(x + ((SirkaDne - cislo.Width) / 2), vyskaMesicu + 1));
@@ -376,7 +387,8 @@ public class CasovaOsa : FrameworkElement
             // („P“ je pondělí i pátek, „S“ středa i sobota).
             var zkratka = kultura.TextInfo.ToTitleCase(
                 kultura.DateTimeFormat.AbbreviatedDayNames[(int)den.DayOfWeek]);
-            var denVTydnu = VytvorText(zkratka, 9, StetecTextSlaby, FontWeights.Normal);
+            var denVTydnu = VytvorText(
+                zkratka, 9, jeDnes ? StetecDnes : StetecTextSlaby, vaha);
             if (denVTydnu.Width <= SirkaDne)
             {
                 dc.DrawText(denVTydnu, new Point(x + ((SirkaDne - denVTydnu.Width) / 2), vyskaMesicu + 15));
@@ -437,8 +449,10 @@ public class CasovaOsa : FrameworkElement
             return;
         }
 
+        // Až od spodního okraje hlavičky — přes datum vedená čára působila jako přeškrtnutí.
+        // Dnešek je v hlavičce místo toho zvýrazněný barvou (viz VykresliHlavicku).
         var x = (index * SirkaDne) + (SirkaDne / 2);
-        dc.DrawLine(PeroDnes, new Point(x, 0), new Point(x, vyska));
+        dc.DrawLine(PeroDnes, new Point(x, VyskaHlavicky), new Point(x, vyska));
     }
 
     private Rect ObdelnikPruhu(ZakazkaViewModel zakazka, int radek)
