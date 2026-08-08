@@ -35,6 +35,7 @@ public class CasovaOsa : FrameworkElement
     private static readonly Brush StetecTextPruhu = Brushes.White;
     private static readonly Pen PeroMrizka = VytvorPero("#E6E9ED", 1);
     private static readonly Pen PeroMesic = VytvorPero("#C7CDD5", 1);
+    private static readonly Pen PeroPredelMesice = VytvorTeckovanePero("#9AA4B2", 1);
     private static readonly Pen PeroDnes = VytvorPero("#E8590C", 2);
     private static readonly Pen PeroPruh = VytvorPero("#2C6494", 1);
     private static readonly Pen PeroPruhKolize = VytvorPero("#922B21", 1);
@@ -317,9 +318,10 @@ public class CasovaOsa : FrameworkElement
             }
 
             // Denní mřížka začíná až pod hlavičkou, jinak by přeškrtávala čísla dnů.
-            // Výjimkou je předěl měsíců, který odděluje i popisky v hlavičce.
+            // Předěl měsíců je tečkovaný a vede přes celou výšku, aby oddělil i popisky
+            // v hlavičce — tečkovaně proto, ať nesoupeří o pozornost s pruhy zakázek.
             var jeZacatekMesice = den.Day == 1;
-            var pero = jeZacatekMesice ? PeroMesic : PeroMrizka;
+            var pero = jeZacatekMesice ? PeroPredelMesice : PeroMrizka;
             var horni = jeZacatekMesice ? 0 : VyskaHlavicky;
             dc.DrawLine(pero, new Point(x + 0.5, horni), new Point(x + 0.5, vyska));
         }
@@ -681,6 +683,19 @@ public class CasovaOsa : FrameworkElement
     private static Pen VytvorPero(string hex, double tloustka)
     {
         var pero = new Pen(Vytvor(hex), tloustka);
+        pero.Freeze();
+        return pero;
+    }
+
+    private static Pen VytvorTeckovanePero(string hex, double tloustka)
+    {
+        var pero = new Pen(Vytvor(hex), tloustka)
+        {
+            // Délky jsou násobky tloušťky pera, proto 2 a 3 dávají tečku a mezeru ~2 a 3 px.
+            DashStyle = new DashStyle([2, 3], 0),
+            DashCap = PenLineCap.Flat,
+        };
+
         pero.Freeze();
         return pero;
     }
