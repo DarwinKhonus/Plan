@@ -112,7 +112,7 @@ public class CasovaOsa : FrameworkElement
         typeof(double),
         typeof(CasovaOsa),
         new FrameworkPropertyMetadata(
-            46.0,
+            56.0,
             FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
     public System.Collections.IEnumerable? Zakazky
@@ -332,7 +332,10 @@ public class CasovaOsa : FrameworkElement
         dc.DrawRectangle(StetecHlavicka, null, new Rect(0, 0, sirka, VyskaHlavicky));
 
         var kultura = CultureInfo.GetCultureInfo("cs-CZ");
-        var vyskaMesicu = VyskaHlavicky / 2;
+
+        // Horní pás patří názvu měsíce, zbytek dvouřádkovému bloku „číslo + zkratka dne“,
+        // který je vyšší — proto ne půl na půl.
+        var vyskaMesicu = VyskaHlavicky * 0.4;
 
         // Pás s názvy měsíců.
         var zacatekUseku = 0;
@@ -378,10 +381,6 @@ public class CasovaOsa : FrameworkElement
             var vaha = jeDnes ? FontWeights.Bold : FontWeights.Normal;
 
             var cislo = VytvorText(den.Day.ToString(kultura), 11, stetec, vaha);
-            if (cislo.Width <= SirkaDne)
-            {
-                dc.DrawText(cislo, new Point(x + ((SirkaDne - cislo.Width) / 2), vyskaMesicu + 1));
-            }
 
             // Dvoupísmenná zkratka; nejkratší tvar je v češtině nejednoznačný
             // („P“ je pondělí i pátek, „S“ středa i sobota).
@@ -389,9 +388,23 @@ public class CasovaOsa : FrameworkElement
                 kultura.DateTimeFormat.AbbreviatedDayNames[(int)den.DayOfWeek]);
             var denVTydnu = VytvorText(
                 zkratka, 9, jeDnes ? StetecDnes : StetecTextSlaby, vaha);
+
+            // Obě řádky se vysází jako blok vystředěný ve zbytku hlavičky. Pevná odsazení
+            // tu dřív byla — při skutečné výšce písma zkratka přetekla pod hlavičku,
+            // kde ji řezala dělicí čára a začátky svislých čar mřížky.
+            var vyskaBloku = cislo.Height + denVTydnu.Height;
+            var horniOkraj = vyskaMesicu + ((VyskaHlavicky - vyskaMesicu - vyskaBloku) / 2);
+
+            if (cislo.Width <= SirkaDne)
+            {
+                dc.DrawText(cislo, new Point(x + ((SirkaDne - cislo.Width) / 2), horniOkraj));
+            }
+
             if (denVTydnu.Width <= SirkaDne)
             {
-                dc.DrawText(denVTydnu, new Point(x + ((SirkaDne - denVTydnu.Width) / 2), vyskaMesicu + 15));
+                dc.DrawText(
+                    denVTydnu,
+                    new Point(x + ((SirkaDne - denVTydnu.Width) / 2), horniOkraj + cislo.Height));
             }
         }
     }
