@@ -1,0 +1,182 @@
+<Window x:Class="Plan.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Plan.Controls"
+        xmlns:vm="clr-namespace:Plan.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
+        Title="Plan"
+        Height="640"
+        Width="1100"
+        MinHeight="420"
+        MinWidth="720"
+        WindowStartupLocation="CenterScreen"
+        Background="#F7F8FA">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolNaViditelnost" />
+
+        <Style TargetType="Button" x:Key="NastrojovyButton">
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="MinWidth" Value="80" />
+        </Style>
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding PridatCommand}" />
+        <KeyBinding Key="Delete" Command="{Binding SmazatCommand}" />
+        <KeyBinding Key="F2" Command="{Binding UpravitCommand}" />
+    </Window.InputBindings>
+
+    <DockPanel>
+
+        <!-- Panel nástrojů -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="#E6E9ED" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="12,10">
+                <Button Content="Přidat" Command="{Binding PridatCommand}" Style="{StaticResource NastrojovyButton}" />
+                <Button Content="Upravit" Command="{Binding UpravitCommand}" Style="{StaticResource NastrojovyButton}" />
+                <Button Content="Smazat" Command="{Binding SmazatCommand}" Style="{StaticResource NastrojovyButton}" />
+
+                <Separator Margin="8,2" />
+
+                <Button Content="Nastavení" Command="{Binding NastaveniCommand}" Style="{StaticResource NastrojovyButton}" />
+
+                <Separator Margin="8,2" />
+
+                <Button Content="−" Command="{Binding OddalitCommand}" Width="32" MinWidth="32" Padding="0,6" Margin="0,0,4,0" ToolTip="Oddálit časovou osu" />
+                <Button Content="+" Command="{Binding PriblizitCommand}" Width="32" MinWidth="32" Padding="0,6" Margin="0,0,6,0" ToolTip="Přiblížit časovou osu" />
+                <Button Content="Dnes" Command="{Binding SkocitNaDnesekCommand}" Style="{StaticResource NastrojovyButton}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Notifikace o nové verzi -->
+        <Border DockPanel.Dock="Top"
+                Background="#FFF6E5"
+                BorderBrush="#F0D9A8"
+                BorderThickness="0,0,0,1"
+                Padding="12,8"
+                Visibility="{Binding JeDostupnaAktualizace, Converter={StaticResource BoolNaViditelnost}}">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding InformaceOAktualizaci}" VerticalAlignment="Center" Foreground="#6B4E11" />
+                <TextBlock Margin="10,0,0,0" VerticalAlignment="Center">
+                    <Hyperlink NavigateUri="{Binding UrlAktualizace}" RequestNavigate="Hyperlink_RequestNavigate">
+                        Otevřít stránku ke stažení
+                    </Hyperlink>
+                </TextBlock>
+            </StackPanel>
+        </Border>
+
+        <!-- Stavový řádek -->
+        <Border DockPanel.Dock="Bottom" Background="White" BorderBrush="#E6E9ED" BorderThickness="0,1,0,0" Padding="12,6">
+            <Grid>
+                <TextBlock Text="{Binding SouhrnStavu}" Foreground="#4A5563" />
+                <TextBlock x:Name="VerzeText" HorizontalAlignment="Right" Foreground="#98A1AF" />
+            </Grid>
+        </Border>
+
+        <TabControl Margin="12" BorderThickness="1" BorderBrush="#E1E5EA" Background="White">
+
+            <TabItem Header="Časová osa">
+                <Grid>
+                    <ScrollViewer x:Name="OsaScroll"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <controls:CasovaOsa x:Name="Osa"
+                                            Zakazky="{Binding Zakazky}"
+                                            Kalendar="{Binding Kalendar}"
+                                            VybranaZakazka="{Binding VybranaZakazka, Mode=TwoWay}"
+                                            PrvniDen="{Binding PrvniDen}"
+                                            PocetDnu="{Binding PocetDnu}"
+                                            SirkaDne="{Binding SirkaDne}"
+                                            TerminZmenen="Osa_TerminZmenen" />
+                    </ScrollViewer>
+
+                    <TextBlock Text="Zatím žádné zakázky. Přidejte první tlačítkem Přidat."
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="#98A1AF"
+                               IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Zakazky.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Tabulka">
+                <DataGrid ItemsSource="{Binding Zakazky}"
+                          SelectedItem="{Binding VybranaZakazka, Mode=TwoWay}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal"
+                          HorizontalGridLinesBrush="#EDEFF2"
+                          BorderThickness="0"
+                          RowHeight="30"
+                          MouseDoubleClick="Tabulka_MouseDoubleClick">
+
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding MaKolizi}" Value="True">
+                                    <Setter Property="Background" Value="#FDECEA" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Název" Binding="{Binding Nazev}" Width="*" />
+                        <DataGridTextColumn Header="Termín od" Binding="{Binding DatumOd, StringFormat=d}" Width="110" />
+                        <DataGridTextColumn Header="Termín do" Binding="{Binding DatumDo, StringFormat=d}" Width="110" />
+                        <DataGridTextColumn Header="Dnů" Binding="{Binding PocetDnu}" Width="60" />
+                        <DataGridTextColumn Header="Odhad hodin" Binding="{Binding OdhadHodin, StringFormat={}{0:0.#} h}" Width="100" />
+
+                        <DataGridTemplateColumn Header="Stav" Width="100">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border CornerRadius="9" Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="#E3F3E8" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding MaKolizi}" Value="True">
+                                                        <Setter Property="Background" Value="#F8D7D3" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding Stav}" FontSize="11">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#1E6B3A" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding MaKolizi}" Value="True">
+                                                            <Setter Property="Foreground" Value="#922B21" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

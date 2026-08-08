@@ -1,0 +1,19 @@
+# Sjednocení konců řádků: v repozitáři LF, v pracovní kopii na Windows CRLF.
+* text=auto
+
+*.cs      text diff=csharp
+*.xaml    text
+*.csproj  text
+*.sln     text eol=crlf
+*.props   text
+*.md      text
+*.yml     text
+*.json    text
+
+# Skripty pro GitHub Actions (Linux i Windows runnery) musí zůstat LF.
+*.sh      text eol=lf
+
+*.png     binary
+*.ico     binary
+*.exe     binary
+*.db      binary

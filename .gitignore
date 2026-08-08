@@ -1,0 +1,63 @@
+# Zadání — zůstává jen lokálně, necommitovat
+zadani-plan.md
+
+## Build výstupy
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.VC.db
+*.VC.VC.opendb
+*.psess
+*.vsp
+*.vspx
+*.sap
+
+## Rider / VS Code
+.idea/
+*.sln.iml
+.vscode/
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.assets.json
+
+## Test výstupy
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+coverage*.json
+coverage*.xml
+coverage*.info
+*.coverage
+*.coveragexml
+
+## Lokální databáze (běžná DB žije v %AppData%\Plan, tohle je pojistka)
+*.db
+*.db-shm
+*.db-wal
+
+## Různé
+*.tmp
+*.bak
+*.cache
+_ReSharper*/
+*.DotSettings.user
+Thumbs.db
+desktop.ini

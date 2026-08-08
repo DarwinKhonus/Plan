@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Nastavit .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Obnovit závislosti
+        run: dotnet restore Plan.sln
+
+      - name: Sestavit
+        run: dotnet build Plan.sln -c Release --no-restore
+
+      - name: Spustit testy
+        run: dotnet test Plan.Tests/Plan.Tests.csproj -c Release --no-build --verbosity normal

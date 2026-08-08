@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Nastavit .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Odvodit verzi z tagu
+        id: verze
+        shell: pwsh
+        run: |
+          # refs/tags/v1.2.3 -> 1.2.3
+          $verze = "${{ github.ref_name }}" -replace '^v', ''
+          if ($verze -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Tag '${{ github.ref_name }}' neodpovídá formátu vX.Y.Z."
+          }
+          "verze=$verze" >> $env:GITHUB_OUTPUT
+          Write-Host "Verze: $verze"
+
+      - name: Obnovit závislosti
+        run: dotnet restore Plan.sln
+
+      - name: Sestavit
+        run: dotnet build Plan.sln -c Release --no-restore -p:Version=${{ steps.verze.outputs.verze }}
+
+      - name: Spustit testy
+        run: dotnet test Plan.Tests/Plan.Tests.csproj -c Release --no-build --verbosity normal
+
+      # Self-contained single-file: uživatel nemusí instalovat .NET runtime.
+      - name: Publikovat
+        run: >
+          dotnet publish Plan/Plan.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ steps.verze.outputs.verze }}
+          -o publish
+
+      - name: Pojmenovat výstup podle verze
+        shell: pwsh
+        run: Move-Item publish/Plan.exe "publish/Plan-${{ steps.verze.outputs.verze }}-win-x64.exe"
+
+      - name: Vytvořit GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Plan ${{ steps.verze.outputs.verze }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: publish/Plan-${{ steps.verze.outputs.verze }}-win-x64.exe
+          body: |
+            Verze **${{ steps.verze.outputs.verze }}** aplikace Plan pro Windows (64bit).
+
+            Stáhněte `Plan-${{ steps.verze.outputs.verze }}-win-x64.exe` a spusťte —
+            nic dalšího se neinstaluje. Data zůstávají v `%AppData%\Plan\plan.db`
+            a aktualizace o ně nepřijde.
