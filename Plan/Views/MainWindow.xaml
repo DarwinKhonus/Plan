@@ -8,6 +8,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         Title="Plan"
+        Icon="/Resources/plan.ico"
         Height="640"
         Width="1100"
         MinHeight="420"

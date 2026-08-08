@@ -10,6 +10,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>Resources\plan.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Kromě ikony .exe je potřeba i jako Resource, aby si ji mohla vzít okna aplikace. -->
+    <Resource Include="Resources\plan.ico" />
+  </ItemGroup>
 
 </Project>
