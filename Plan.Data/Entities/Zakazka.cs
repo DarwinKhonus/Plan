@@ -10,6 +10,12 @@ public class Zakazka
 
     public string Nazev { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Pozice v ručním řazení. Použije se, jen když je v nastavení vypnuté automatické
+    /// řazení podle termínu.
+    /// </summary>
+    public int Poradi { get; set; }
+
     public List<Usek> Useky { get; set; } = [];
 
     public List<Milnik> Milniky { get; set; } = [];

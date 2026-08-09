@@ -24,26 +24,51 @@ public class ZakazkyRepository
             .Include(z => z.Milniky)
             .ToListAsync();
 
-        // Řazení podle začátku se dělá v paměti — DatumOd je dopočítaná vlastnost
-        // nad úseky, kterou SQL nezná.
+        // Deterministicky podle ručního pořadí. Kdo chce řazení podle termínu, přeskládá
+        // si to sám — DatumOd je dopočítaná vlastnost nad úseky, kterou SQL nezná.
         return zakazky
-            .OrderBy(z => z.DatumOd)
-            .ThenBy(z => z.DatumDo)
+            .OrderBy(z => z.Poradi)
+            .ThenBy(z => z.Id)
             .ToList();
+    }
+
+    /// <summary>Uloží ruční pořadí zakázek podle jejich posloupnosti v seznamu.</summary>
+    public async Task UlozPoradiAsync(IReadOnlyList<int> idsVPoradi)
+    {
+        await using var db = _factory.Create();
+        var zakazky = await db.Zakazky.ToDictionaryAsync(z => z.Id);
+
+        for (var i = 0; i < idsVPoradi.Count; i++)
+        {
+            if (zakazky.TryGetValue(idsVPoradi[i], out var zakazka))
+            {
+                zakazka.Poradi = i + 1;
+            }
+        }
+
+        await db.SaveChangesAsync();
     }
 
     public async Task<Zakazka> PridejAsync(string nazev, DateOnly od, DateOnly doVcetne)
     {
         var ted = DateTime.UtcNow;
+
+        await using var db = _factory.Create();
+
+        // Nová zakázka jde v ručním řazení na konec.
+        var posledniPoradi = await db.Zakazky.AnyAsync()
+            ? await db.Zakazky.MaxAsync(z => z.Poradi)
+            : 0;
+
         var zakazka = new Zakazka
         {
             Nazev = nazev,
+            Poradi = posledniPoradi + 1,
             VytvorenoUtc = ted,
             UpravenoUtc = ted,
             Useky = [new Usek { DatumOd = od, DatumDo = doVcetne }],
         };
 
-        await using var db = _factory.Create();
         db.Zakazky.Add(zakazka);
         await db.SaveChangesAsync();
         return zakazka;

@@ -15,6 +15,8 @@ kontakty ani obchodní historii.
   vložit pauzu; pauza se nepočítá do hodin a neblokuje jiné zakázky
 - **Milníky** — jednodenní značka v řádku zakázky (předání, dodání materiálu); najetím myší
   se zobrazí popis, kliknutím se milník upraví nebo smaže
+- **Řazení zakázek** — automaticky podle termínu, nebo ručně: po vypnutí volby v nastavení
+  lze zakázky v ose přetahovat svisle mezi sebou
 - **Info** — přehled o zakázce pod pravým tlačítkem nebo F1
 - **Detekce kolizí** — překrývající se zakázky se zvýrazní v ose i v tabulce a přepočítají
   se při každé změně; překryv pouze v nepracovní dny se za konflikt nepovažuje
@@ -147,4 +149,8 @@ dotnet publish Plan/Plan.csproj -c Release -r win-x64 --self-contained true -p:P
   Celkový rozsah `DatumOd`/`DatumDo` se dopočítává z úseků, aby neexistovaly dva zdroje pravdy.
 - **Překrývající se úseky jedné zakázky se slijí**, jen dotýkající se ne — jinak by se
   rozdělení zakázky okamžitě samo vrátilo zpátky.
+- **Ruční řazení se v ose pozná podle směru tažení** — svisle pořadí, vodorovně termín.
+  Rozhoduje se po prvních pixelech, takže drobné chvění ruky režim nepřehodí.
+- **Popisky dnů se při oddálení ředí po týdnech**, ne po desítkách dnů: měsíce mají různou
+  délku, takže 1–10–20–30 by se na přelomu měsíce srazilo.
 - **Self-contained build** — uživatel nemusí řešit instalaci .NET runtime.

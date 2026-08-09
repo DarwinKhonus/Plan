@@ -199,7 +199,10 @@
                                             SirkaDne="{Binding SirkaDne}"
                                             SirkaViditelnehoOkna="{Binding SirkaViditelneCasti}"
                                             UsekZmenen="Osa_UsekZmenen"
-                                            MilnikKliknut="Osa_MilnikKliknut">
+                                            MilnikKliknut="Osa_MilnikKliknut"
+                                            LzeMenitPoradi="{Binding LzeMenitPoradi}"
+                                            PoradiZmeneno="Osa_PoradiZmeneno"
+                                            PoradiDotazeno="Osa_PoradiDotazeno">
                             <controls:CasovaOsa.ContextMenu>
                                 <!--
                                     Vlastní nabídka osy: položky pro úseky a milníky potřebují

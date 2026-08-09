@@ -21,6 +21,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
     private string _zacatekPrace;
     private string _konecPrace;
     private bool _zohlednitSvatky;
+    private bool _automatickeRazeni;
 
     public NastaveniViewModel(PracovniNastaveni nastaveni)
     {
@@ -34,6 +35,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
         _zacatekPrace = nastaveni.ZacatekPrace.ToString("HH:mm", CultureInfo.InvariantCulture);
         _konecPrace = nastaveni.KonecPrace.ToString("HH:mm", CultureInfo.InvariantCulture);
         _zohlednitSvatky = nastaveni.ZohlednitSvatky;
+        _automatickeRazeni = nastaveni.AutomatickeRazeni;
     }
 
     public bool Pondeli { get => _pondeli; set => NastavDen(ref _pondeli, value); }
@@ -83,6 +85,12 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
         set => SetProperty(ref _zohlednitSvatky, value);
     }
 
+    public bool AutomatickeRazeni
+    {
+        get => _automatickeRazeni;
+        set => SetProperty(ref _automatickeRazeni, value);
+    }
+
     public string HodinDenneText
     {
         get
@@ -125,6 +133,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
             ZacatekPrace = zacatek,
             KonecPrace = konec,
             ZohlednitSvatky = _zohlednitSvatky,
+            AutomatickeRazeni = _automatickeRazeni,
         };
     }
 

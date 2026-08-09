@@ -101,6 +101,12 @@ public class CasovaOsa : FrameworkElement
     /// <summary>Levý klik na milník — okno na to otevírá dialog úpravy.</summary>
     public event EventHandler<MilnikKliknutEventArgs>? MilnikKliknut;
 
+    /// <summary>Průběžná změna pořadí při svislém tažení.</summary>
+    public event EventHandler<PoradiZmenenoEventArgs>? PoradiZmeneno;
+
+    /// <summary>Svislé tažení skončilo — pořadí je na místě a má se uložit.</summary>
+    public event EventHandler? PoradiDotazeno;
+
     #region Dependency properties
 
     public static readonly DependencyProperty ZakazkyProperty = DependencyProperty.Register(
@@ -153,6 +159,13 @@ public class CasovaOsa : FrameworkElement
     /// Šířka viditelné části. Spolu s posunem určuje, které dny se vůbec kreslí —
     /// bez toho se sázely texty i pro dny mimo okno a vykreslení stálo desítky ms.
     /// </summary>
+    /// <summary>Smí svislé tažení měnit pořadí? Řídí se nastavením automatického řazení.</summary>
+    public static readonly DependencyProperty LzeMenitPoradiProperty = DependencyProperty.Register(
+        nameof(LzeMenitPoradi),
+        typeof(bool),
+        typeof(CasovaOsa),
+        new FrameworkPropertyMetadata(false));
+
     public static readonly DependencyProperty SirkaViditelnehoOknaProperty = DependencyProperty.Register(
         nameof(SirkaViditelnehoOkna),
         typeof(double),
@@ -233,6 +246,12 @@ public class CasovaOsa : FrameworkElement
     {
         get => (double)GetValue(SirkaViditelnehoOknaProperty);
         set => SetValue(SirkaViditelnehoOknaProperty, value);
+    }
+
+    public bool LzeMenitPoradi
+    {
+        get => (bool)GetValue(LzeMenitPoradiProperty);
+        set => SetValue(LzeMenitPoradiProperty, value);
     }
 
     /// <summary>
@@ -970,12 +989,15 @@ public class CasovaOsa : FrameworkElement
             return;
         }
 
+        var pozice = e.GetPosition(this);
+
         _tazeni = new TazeniStav
         {
             Zakazka = zasah.Zakazka!,
             Usek = zasah.Usek,
             Zona = zasah.Zona,
-            VychoziX = e.GetPosition(this).X,
+            VychoziX = pozice.X,
+            VychoziY = pozice.Y,
             PuvodniOd = zasah.Usek.DatumOd,
             PuvodniDo = zasah.Usek.DatumDo,
         };
@@ -1021,7 +1043,11 @@ public class CasovaOsa : FrameworkElement
         ReleaseMouseCapture();
 
         // Do databáze se zapisuje až tady — během tažení by se jinak uložily desítky mezistavů.
-        if (tazeni.Usek.DatumOd != tazeni.PuvodniOd || tazeni.Usek.DatumDo != tazeni.PuvodniDo)
+        if (tazeni.PoradiZmeneno)
+        {
+            PoradiDotazeno?.Invoke(this, EventArgs.Empty);
+        }
+        else if (tazeni.Usek.DatumOd != tazeni.PuvodniOd || tazeni.Usek.DatumDo != tazeni.PuvodniDo)
         {
             UsekZmenen?.Invoke(this, new UsekZmenenEventArgs(tazeni.Zakazka, tazeni.Usek));
         }
@@ -1033,15 +1059,25 @@ public class CasovaOsa : FrameworkElement
     {
         base.OnLostMouseCapture(e);
 
-        // Ztráta capture (Alt+Tab, jiné okno) vrátí termín na původní hodnotu,
-        // aby nezůstal viset nedokončený posun, který se nikam neuloží.
         if (_tazeni is null)
         {
             return;
         }
 
-        _tazeni.Usek.DatumOd = _tazeni.PuvodniOd;
-        _tazeni.Usek.DatumDo = _tazeni.PuvodniDo;
+        // Ztráta capture (Alt+Tab, jiné okno) vrátí termín na původní hodnotu,
+        // aby nezůstal viset nedokončený posun, který se nikam neuloží.
+        if (_tazeni.PoradiZmeneno)
+        {
+            // Pořadí se vrátit nedá — zakázky už jsou přeskládané, tak se to aspoň uloží,
+            // aby stav v okně odpovídal databázi.
+            PoradiDotazeno?.Invoke(this, EventArgs.Empty);
+        }
+        else
+        {
+            _tazeni.Usek.DatumOd = _tazeni.PuvodniOd;
+            _tazeni.Usek.DatumDo = _tazeni.PuvodniDo;
+        }
+
         _tazeni = null;
         InvalidateVisual();
     }
@@ -1049,6 +1085,23 @@ public class CasovaOsa : FrameworkElement
     private void AktualizujTazeni(Point pozice)
     {
         var tazeni = _tazeni!;
+
+        if (tazeni.Rezim == RezimTazeni.Nerozhodnuto)
+        {
+            RozhodniRezim(tazeni, pozice);
+        }
+
+        if (tazeni.Rezim == RezimTazeni.Poradi)
+        {
+            AktualizujPoradi(tazeni, pozice);
+            return;
+        }
+
+        if (tazeni.Rezim == RezimTazeni.Nerozhodnuto)
+        {
+            return;
+        }
+
         var posunDnu = (int)Math.Round((pozice.X - tazeni.VychoziX) / SirkaDne);
 
         switch (tazeni.Zona)
@@ -1070,6 +1123,56 @@ public class CasovaOsa : FrameworkElement
                 break;
         }
 
+        InvalidateVisual();
+    }
+
+    /// <summary>
+    /// Rozhodne, jestli tažení mění termín, nebo pořadí. Rozhoduje se podle toho, kterým
+    /// směrem uživatel vyjel dřív — teprve po pár pixelech, aby drobné chvění nerozhodovalo.
+    /// </summary>
+    private void RozhodniRezim(TazeniStav tazeni, Point pozice)
+    {
+        const double Prah = 4;
+
+        var dx = Math.Abs(pozice.X - tazeni.VychoziX);
+        var dy = Math.Abs(pozice.Y - tazeni.VychoziY);
+
+        if (dx < Prah && dy < Prah)
+        {
+            return;
+        }
+
+        // Změna pořadí jen tehdy, když ji nastavení dovoluje; jinak zůstává termín.
+        tazeni.Rezim = dy > dx && LzeMenitPoradi
+            ? RezimTazeni.Poradi
+            : RezimTazeni.Termin;
+    }
+
+    /// <summary>
+    /// Přeskládá zakázky během svislého tažení. Řádky se posouvají hned, takže je vidět,
+    /// kam zakázka spadne.
+    /// </summary>
+    private void AktualizujPoradi(TazeniStav tazeni, Point pozice)
+    {
+        var zakazky = AktualniZakazky();
+        var puvodniIndex = zakazky.IndexOf(tazeni.Zakazka);
+        if (puvodniIndex < 0)
+        {
+            return;
+        }
+
+        var cilovyIndex = Math.Clamp(
+            (int)((pozice.Y - VyskaHlavicky) / VyskaRadku),
+            0,
+            zakazky.Count - 1);
+
+        if (cilovyIndex == puvodniIndex)
+        {
+            return;
+        }
+
+        PoradiZmeneno?.Invoke(this, new PoradiZmenenoEventArgs(tazeni.Zakazka, cilovyIndex));
+        tazeni.PoradiZmeneno = true;
         InvalidateVisual();
     }
 
@@ -1158,6 +1261,14 @@ public class CasovaOsa : FrameworkElement
         Milnik,
     }
 
+    /// <summary>Co tažení dělá. Rozhodne se po prvních pixelech podle jeho směru.</summary>
+    private enum RezimTazeni
+    {
+        Nerozhodnuto,
+        Termin,
+        Poradi,
+    }
+
     private class TazeniStav
     {
         public required ZakazkaViewModel Zakazka { get; init; }
@@ -1168,9 +1279,16 @@ public class CasovaOsa : FrameworkElement
 
         public required double VychoziX { get; init; }
 
+        public required double VychoziY { get; init; }
+
         public required DateOnly PuvodniOd { get; init; }
 
         public required DateOnly PuvodniDo { get; init; }
+
+        public RezimTazeni Rezim { get; set; } = RezimTazeni.Nerozhodnuto;
+
+        /// <summary>Změnilo tažení pořadí? Podle toho se po dotažení ukládá.</summary>
+        public bool PoradiZmeneno { get; set; }
     }
 
     #endregion

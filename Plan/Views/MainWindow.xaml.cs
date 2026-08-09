@@ -231,6 +231,12 @@ public partial class MainWindow : Window
         }
     }
 
+    private void Osa_PoradiZmeneno(object? sender, PoradiZmenenoEventArgs e) =>
+        _viewModel.PresunZakazku(e.Zakazka, e.CilovyIndex);
+
+    private async void Osa_PoradiDotazeno(object? sender, EventArgs e) =>
+        await _viewModel.UlozPoradiAsync();
+
     /// <summary>Levý klik na milník v ose otevře jeho úpravu.</summary>
     private async void Osa_MilnikKliknut(object? sender, MilnikKliknutEventArgs e) =>
         await UpravMilnikAsync(e.Zakazka, e.Milnik);

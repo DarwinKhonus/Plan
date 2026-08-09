@@ -68,6 +68,16 @@
                    TextWrapping="Wrap"
                    Margin="0,0,0,18" />
 
+        <TextBlock Text="Řazení zakázek" Style="{StaticResource Nadpis}" />
+        <CheckBox Content="Řadit zakázky automaticky podle termínu"
+                  IsChecked="{Binding AutomatickeRazeni}"
+                  Margin="0,0,0,6" />
+        <TextBlock Text="Když je vypnuté, drží se ruční pořadí a zakázky lze v časové ose přetahovat svisle mezi sebou."
+                   Foreground="#8A94A3"
+                   FontSize="11"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,18" />
+
         <TextBlock Text="Vyberte aspoň jeden pracovní den a platný rozsah pracovní doby."
                    Foreground="#C0392B"
                    TextWrapping="Wrap"

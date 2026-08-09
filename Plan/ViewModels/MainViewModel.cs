@@ -397,6 +397,15 @@ public class MainViewModel : ObservableObject
         var zakazky = await _zakazkyRepository.NactiVseAsync();
         var vybraneId = VybranaZakazka?.Id;
 
+        // Repozitář vrací ruční pořadí; při automatickém řazení se přeskládá podle termínu.
+        if (Kalendar.Nastaveni.AutomatickeRazeni)
+        {
+            zakazky = zakazky
+                .OrderBy(z => z.DatumOd)
+                .ThenBy(z => z.DatumDo)
+                .ToList();
+        }
+
         _hromadnaZmena = true;
         try
         {
@@ -479,6 +488,41 @@ public class MainViewModel : ObservableObject
         await NactiAsync();
     }
 
+    /// <summary>Lze zakázky přetahovat mezi sebou? Jen když je vypnuté automatické řazení.</summary>
+    public bool LzeMenitPoradi => !Kalendar.Nastaveni.AutomatickeRazeni;
+
+    /// <summary>
+    /// Přesune zakázku na jinou pozici. Během tažení se volá opakovaně, proto se sem
+    /// nic neukládá — zápis do databáze dělá <see cref="UlozPoradiAsync"/> po dotažení.
+    /// </summary>
+    public void PresunZakazku(ZakazkaViewModel zakazka, int cilovyIndex)
+    {
+        var stavajici = Zakazky.IndexOf(zakazka);
+        cilovyIndex = Math.Clamp(cilovyIndex, 0, Zakazky.Count - 1);
+
+        if (stavajici < 0 || stavajici == cilovyIndex)
+        {
+            return;
+        }
+
+        // Přeskládání během tažení nemá spouštět přepočty; ty proběhnou po dotažení.
+        _hromadnaZmena = true;
+        try
+        {
+            Zakazky.Move(stavajici, cilovyIndex);
+        }
+        finally
+        {
+            _hromadnaZmena = false;
+        }
+    }
+
+    public async Task UlozPoradiAsync()
+    {
+        await _zakazkyRepository.UlozPoradiAsync([.. Zakazky.Select(z => z.Id)]);
+        PostavRadkyTabulky();
+    }
+
     /// <summary>Rozbalí nebo sbalí strom milníků u zakázky.</summary>
     public void PrepniRozbaleni(ZakazkaViewModel zakazka)
     {
@@ -504,8 +548,18 @@ public class MainViewModel : ObservableObject
 
     public async Task UlozNastaveniAsync(PracovniNastaveni nastaveni)
     {
+        var razeniSeZmenilo = Kalendar.Nastaveni.AutomatickeRazeni != nastaveni.AutomatickeRazeni;
+
         await _nastaveniRepository.UlozAsync(nastaveni);
         Kalendar = new PracovniKalendar(nastaveni);
+        OnPropertyChanged(nameof(LzeMenitPoradi));
+
+        // Zapnutí automatického řazení musí zakázky hned přeskládat, proto plné načtení.
+        if (razeniSeZmenilo)
+        {
+            await NactiAsync();
+            return;
+        }
 
         // Kolize závisí na pracovních dnech, takže změna nastavení je musí přepočítat taky.
         PrepocitejKolize();

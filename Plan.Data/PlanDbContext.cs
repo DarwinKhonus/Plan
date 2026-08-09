@@ -24,6 +24,7 @@ public class PlanDbContext : DbContext
             e.ToTable("Zakazky");
             e.HasKey(z => z.Id);
             e.Property(z => z.Nazev).IsRequired().HasMaxLength(200);
+            e.Property(z => z.Poradi).IsRequired();
             e.Property(z => z.VytvorenoUtc).IsRequired();
             e.Property(z => z.UpravenoUtc).IsRequired();
 
