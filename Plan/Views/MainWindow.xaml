@@ -312,13 +312,19 @@
                                                 sedělo kvůli metrikám písma pod středem čtverečku;
                                                 obdélníky se vystředí přesně.
                                             -->
-                                            <Grid Width="8" Height="8">
+                                            <!--
+                                                Rozměry jsou celá čísla a středění tak padne
+                                                na celé pixely. S 1,5 px se svislá čárka
+                                                rozmazávala do dvou pixelů a vedle vodorovné
+                                                vypadala nepatřičně.
+                                            -->
+                                            <Grid Width="8" Height="8" UseLayoutRounding="True">
                                                 <Rectangle Width="8"
-                                                           Height="1.5"
+                                                           Height="2"
                                                            Fill="#3C4653"
                                                            HorizontalAlignment="Center"
                                                            VerticalAlignment="Center" />
-                                                <Rectangle Width="1.5"
+                                                <Rectangle Width="2"
                                                            Height="8"
                                                            Fill="#3C4653"
                                                            HorizontalAlignment="Center"
