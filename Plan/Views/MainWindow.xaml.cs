@@ -264,6 +264,71 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Delete v tabulce. Řeší se tady, protože DataGrid si klávesu zpracuje sám
+    /// a k vazbě na okně by se nedostala.
+    /// </summary>
+    private async void Tabulka_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Delete)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        // Na řádku milníku maže DEL milník, ne celou zakázku.
+        if (_viewModel.VybranyRadek is { Milnik: { } milnik } radek)
+        {
+            await SmazMilnikSPotvrzenimAsync(radek.Zakazka, milnik);
+        }
+        else
+        {
+            SmazatZakazku();
+        }
+    }
+
+    private async Task SmazMilnikSPotvrzenimAsync(ZakazkaViewModel zakazka, MilnikViewModel milnik)
+    {
+        var odpoved = MessageBox.Show(
+            this,
+            $"Opravdu smazat milník „{milnik.Nazev}“ ze zakázky „{zakazka.Nazev}“?",
+            "Smazání milníku",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question,
+            MessageBoxResult.No);
+
+        if (odpoved == MessageBoxResult.Yes)
+        {
+            await _viewModel.SmazMilnikAsync(milnik);
+        }
+    }
+
+    private async void Tabulka_PridatMilnik(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.VybranaZakazka is not { } zakazka)
+        {
+            return;
+        }
+
+        // V tabulce není den pod kurzorem jako v ose, tak se předplní začátek zakázky.
+        var dialog = MilnikDialog.Novy(zakazka.DatumOd, zakazka.Nazev);
+        dialog.Owner = this;
+
+        if (dialog.ShowDialog() == true)
+        {
+            await _viewModel.PridejMilnikAsync(zakazka.Id, dialog.Datum, dialog.Nazev);
+        }
+    }
+
+    private async void Tabulka_SmazatMilnik(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.VybranyRadek is { Milnik: { } milnik } radek)
+        {
+            await SmazMilnikSPotvrzenimAsync(radek.Zakazka, milnik);
+        }
+    }
+
     private async void Tabulka_UpravitMilnik(object sender, RoutedEventArgs e)
     {
         if (_viewModel.VybranyRadek is { Milnik: { } milnik } radek)

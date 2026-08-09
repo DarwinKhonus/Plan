@@ -442,6 +442,53 @@ public class CasovaOsa : FrameworkElement
         dc.DrawLine(PeroMesic, new Point(0, VyskaHlavicky + 0.5), new Point(sirka, VyskaHlavicky + 0.5));
     }
 
+    /// <summary>
+    /// Po kolika dnech popisovat čísla v hlavičce. Dokud se dvojciferné číslo vejde do
+    /// jednoho dne, popisují se všechny; pak se přechází na pondělky, každý druhý
+    /// a každý čtvrtý.
+    /// </summary>
+    /// <remarks>
+    /// Krok je záměrně po týdnech, ne po desítkách dnů: měsíce mají různou délku, takže
+    /// popisky 1–10–20–30 by se na přelomu měsíce srazily k sobě. Týdenní rytmus navíc
+    /// odpovídá podbarveným víkendům.
+    /// </remarks>
+    private int KrokPopiskuDnu()
+    {
+        // Nejširší dvojciferné číslo plus odsazení.
+        const double PotrebnaSirka = 20;
+
+        if (SirkaDne >= PotrebnaSirka)
+        {
+            return 1;
+        }
+
+        foreach (var krok in (int[])[7, 14, 28])
+        {
+            if (krok * SirkaDne >= PotrebnaSirka)
+            {
+                return krok;
+            }
+        }
+
+        return 28;
+    }
+
+    /// <summary>
+    /// Padne den na pravidelný krok? U týdenních kroků se počítá od pondělí, aby popisky
+    /// stály vždy na stejném dni v týdnu.
+    /// </summary>
+    private static bool JeDenNaKroku(DateOnly den, int krok)
+    {
+        if (den.DayOfWeek != DayOfWeek.Monday)
+        {
+            return false;
+        }
+
+        // Počet týdnů od pevného pondělí (5. 1. 1970), aby volba nezávisela na rozsahu osy.
+        var tydnuOdReferencniho = (den.DayNumber - new DateOnly(1970, 1, 5).DayNumber) / 7;
+        return tydnuOdReferencniho % (krok / 7) == 0;
+    }
+
     private void VykresliHlavicku(DrawingContext dc, double sirka)
     {
         dc.DrawRectangle(StetecHlavicka, null, new Rect(0, 0, sirka, VyskaHlavicky));
@@ -491,6 +538,10 @@ public class CasovaOsa : FrameworkElement
         var dnes = DateOnly.FromDateTime(DateTime.Today);
         var (prvniViditelny, posledniViditelny) = ViditelneDny();
 
+        var krokCisel = KrokPopiskuDnu();
+        var dvoupismennaZkratka = SirkaDne >= 16;
+        var zobrazitZkratky = SirkaDne >= 8;
+
         for (var i = prvniViditelny; i <= posledniViditelny; i++)
         {
             var den = PrvniDen.AddDays(i);
@@ -503,12 +554,18 @@ public class CasovaOsa : FrameworkElement
                 : jeNepracovni ? StetecTextSlaby : StetecText;
             var vaha = jeDnes ? FontWeights.Bold : FontWeights.Normal;
 
+            // Číslo dne se popisuje jen v pravidelném kroku. Dřív se dvojciferné číslo
+            // prostě zahodilo, když se nevešlo, takže v hlavičce vznikaly nepravidelné
+            // mezery a datum bylo místy nečitelné.
+            var popsatCislo = krokCisel == 1 || JeDenNaKroku(den, krokCisel);
+
             var cislo = VytvorTextZMezipameti(den.Day.ToString(kultura), 11, stetec, vaha);
 
-            // Dvoupísmenná zkratka; nejkratší tvar je v češtině nejednoznačný
-            // („P“ je pondělí i pátek, „S“ středa i sobota).
+            var zkratka = dvoupismennaZkratka
+                ? ZkratkaDne(den.DayOfWeek)
+                : ZkratkaDneKratka(den.DayOfWeek);
             var denVTydnu = VytvorTextZMezipameti(
-                ZkratkaDne(den.DayOfWeek), 9, jeDnes ? StetecDnes : StetecTextSlaby, vaha);
+                zkratka, 9, jeDnes ? StetecDnes : StetecTextSlaby, vaha);
 
             // Obě řádky se vysází jako blok vystředěný ve zbytku hlavičky. Pevná odsazení
             // tu dřív byla — při skutečné výšce písma zkratka přetekla pod hlavičku,
@@ -516,12 +573,14 @@ public class CasovaOsa : FrameworkElement
             var vyskaBloku = cislo.Height + denVTydnu.Height;
             var horniOkraj = vyskaMesicu + ((VyskaHlavicky - vyskaMesicu - vyskaBloku) / 2);
 
-            if (cislo.Width <= SirkaDne)
+            if (popsatCislo)
             {
+                // Vždy vystředěné na svůj den — je to datum, musí sedět na dni, kterému
+                // patří. Při širším kroku smí přečnívat, protože sousední dny popisek nemají.
                 dc.DrawText(cislo, new Point(x + ((SirkaDne - cislo.Width) / 2), horniOkraj));
             }
 
-            if (denVTydnu.Width <= SirkaDne)
+            if (zobrazitZkratky && denVTydnu.Width <= SirkaDne)
             {
                 dc.DrawText(
                     denVTydnu,
@@ -795,7 +854,14 @@ public class CasovaOsa : FrameworkElement
         .Select(d => Kultura.TextInfo.ToTitleCase(Kultura.DateTimeFormat.AbbreviatedDayNames[d]))
         .ToArray();
 
+    /// <summary>Jednopísmenné zkratky pro oddálenou osu, kde se dvě písmena nevejdou.</summary>
+    private static readonly string[] ZkratkyDnuKratke = ZkratkyDnu
+        .Select(z => z[..1])
+        .ToArray();
+
     private static string ZkratkaDne(DayOfWeek den) => ZkratkyDnu[(int)den];
+
+    private static string ZkratkaDneKratka(DayOfWeek den) => ZkratkyDnuKratke[(int)den];
 
     private static FormattedText VytvorTextZMezipameti(
         string text, double velikost, Brush stetec, FontWeight vaha)

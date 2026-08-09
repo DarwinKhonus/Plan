@@ -39,6 +39,9 @@
             <MenuItem Header="Info" Command="{Binding InfoCommand}" FontWeight="SemiBold" />
             <Separator />
             <MenuItem Header="Upravit zakázku" Command="{Binding UpravitCommand}" InputGestureText="F2" />
+            <MenuItem Header="Smazat zakázku" Command="{Binding SmazatCommand}" InputGestureText="Del" />
+            <Separator />
+            <MenuItem Header="Přidat milník…" Click="Tabulka_PridatMilnik" />
             <MenuItem Header="Upravit milník…" Click="Tabulka_UpravitMilnik">
                 <MenuItem.Style>
                     <Style TargetType="MenuItem">
@@ -52,7 +55,18 @@
                     </Style>
                 </MenuItem.Style>
             </MenuItem>
-            <MenuItem Header="Smazat zakázku" Command="{Binding SmazatCommand}" InputGestureText="Del" />
+            <MenuItem Header="Smazat milník" Click="Tabulka_SmazatMilnik">
+                <MenuItem.Style>
+                    <Style TargetType="MenuItem">
+                        <Setter Property="IsEnabled" Value="False" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding VybranyRadek.JeMilnik}" Value="True">
+                                <Setter Property="IsEnabled" Value="True" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </MenuItem.Style>
+            </MenuItem>
             <Separator />
             <MenuItem Header="Přidat zakázku" Command="{Binding PridatCommand}" InputGestureText="Ctrl+N" />
         </ContextMenu>
@@ -242,7 +256,8 @@
                           BorderThickness="0"
                           RowHeight="30"
                           MouseDoubleClick="Tabulka_MouseDoubleClick"
-                          PreviewMouseRightButtonDown="Tabulka_PreviewMouseRightButtonDown">
+                          PreviewMouseRightButtonDown="Tabulka_PreviewMouseRightButtonDown"
+                          PreviewKeyDown="Tabulka_PreviewKeyDown">
 
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
