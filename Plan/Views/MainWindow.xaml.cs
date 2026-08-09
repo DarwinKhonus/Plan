@@ -304,6 +304,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private void Tabulka_PrepnoutRozbaleni(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: RadekTabulky radek })
+        {
+            _viewModel.PrepniRozbaleni(radek.Zakazka);
+        }
+
+        // Klik na přepínač nemá zároveň měnit výběr řádku.
+        e.Handled = true;
+    }
+
     private async void Tabulka_PridatMilnik(object sender, RoutedEventArgs e)
     {
         if (_viewModel.VybranaZakazka is not { } zakazka)

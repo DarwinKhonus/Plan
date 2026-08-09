@@ -32,6 +32,12 @@ public class MainViewModel : ObservableObject
     private double _sirkaDne = 26;
     private double _sirkaViditelneCasti;
     private RadekTabulky? _vybranyRadek;
+
+    /// <summary>
+    /// Zakázky s rozbaleným stromem milníků, podle Id — přeskládání řádků vytváří nové
+    /// instance, takže stav rozbalení nemůže žít na nich. Prázdná množina = vše sbalené.
+    /// </summary>
+    private readonly HashSet<int> _rozbaleneZakazky = [];
     private string? _informaceOAktualizaci;
     private string? _urlAktualizace;
     private string? _chybaDatabaze;
@@ -473,6 +479,17 @@ public class MainViewModel : ObservableObject
         await NactiAsync();
     }
 
+    /// <summary>Rozbalí nebo sbalí strom milníků u zakázky.</summary>
+    public void PrepniRozbaleni(ZakazkaViewModel zakazka)
+    {
+        if (!_rozbaleneZakazky.Remove(zakazka.Id))
+        {
+            _rozbaleneZakazky.Add(zakazka.Id);
+        }
+
+        PostavRadkyTabulky();
+    }
+
     public async Task UpravMilnikAsync(MilnikViewModel milnik, DateOnly datum, string nazev)
     {
         await _zakazkyRepository.UpravMilnikAsync(milnik.Id, datum, nazev.Trim());
@@ -534,7 +551,8 @@ public class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Přeskládá řádky tabulky: zakázka a hned pod ní její milníky podle data.
+    /// Přeskládá řádky tabulky: zakázka a pod ní její milníky podle data, pokud je
+    /// strom rozbalený. Výchozí stav je sbaleno.
     /// </summary>
     private void PostavRadkyTabulky()
     {
@@ -550,7 +568,13 @@ public class MainViewModel : ObservableObject
 
         foreach (var zakazka in Zakazky)
         {
-            RadkyTabulky.Add(new RadekTabulky(zakazka));
+            var jeRozbalena = _rozbaleneZakazky.Contains(zakazka.Id);
+            RadkyTabulky.Add(new RadekTabulky(zakazka, jeRozbalena));
+
+            if (!jeRozbalena)
+            {
+                continue;
+            }
 
             var milniky = zakazka.Milniky.OrderBy(m => m.Datum).ToList();
             for (var i = 0; i < milniky.Count; i++)

@@ -15,9 +15,10 @@ public class RadekTabulky : ObservableObject, IDisposable
     private readonly bool _jePosledniMilnik;
 
     /// <summary>Řádek zakázky.</summary>
-    public RadekTabulky(ZakazkaViewModel zakazka)
+    public RadekTabulky(ZakazkaViewModel zakazka, bool jeRozbalena)
     {
         Zakazka = zakazka;
+        JeRozbalena = jeRozbalena;
 
         // Posun úseku tažením mění data i hodiny, řádek na to musí reagovat.
         Zakazka.PropertyChanged += NaZmenuZakazky;
@@ -36,6 +37,21 @@ public class RadekTabulky : ObservableObject, IDisposable
     public MilnikViewModel? Milnik { get; }
 
     public bool JeMilnik => Milnik is not null;
+
+    /// <summary>Je strom milníků u této zakázky rozbalený? U řádku milníku bez významu.</summary>
+    public bool JeRozbalena { get; }
+
+    /// <summary>Zakázka bez milníků přepínač nepotřebuje.</summary>
+    public bool LzeRozbalit => !JeMilnik && Zakazka.Milniky.Count > 0;
+
+    /// <summary>
+    /// Znak přepínače. Klasické plus a minus — trojúhelníčky se v malém tlačítku ztrácely.
+    /// </summary>
+    public string ZnakPrepinace => JeRozbalena ? "−" : "+";
+
+    public string PopisPrepinace => JeRozbalena
+        ? "Sbalit milníky"
+        : $"Rozbalit milníky ({Zakazka.Milniky.Count})";
 
     /// <summary>Naznačení stromu: poslední milník uzavírá větev.</summary>
     public string Spojnice => JeMilnik ? (_jePosledniMilnik ? "└─" : "├─") : string.Empty;

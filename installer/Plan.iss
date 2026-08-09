@@ -74,10 +74,24 @@ Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
 Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
 
 [Run]
+; Ruční instalace: zaškrtávátko na poslední stránce průvodce.
 Filename: "{app}\{#AppExeName}"; Description: "Spustit aplikaci {#AppName}"; \
     Flags: nowait postinstall skipifsilent
+
+; Tichá instalace (aktualizace z aplikace): průvodce se nezobrazí, takže se aplikace
+; spustí bez ptaní. Uživatel ji před instalací měl otevřenou a instalátor mu ji zavřel,
+; takže ji čeká zase otevřenou.
+Filename: "{app}\{#AppExeName}"; Flags: nowait; Check: JeTichaInstalace
 
 ; Databáze v %AppData%\Plan se záměrně nemaže — odinstalace nesmí připravit
 ; uživatele o naplánované termíny. Kdo chce smazat i data, smaže složku ručně.
 [UninstallDelete]
 Type: dirifempty; Name: "{app}"
+
+; Sekce [Code] musí zůstat poslední — vše za ní se čte jako Pascal, takže by se
+; na komentářích začínajících středníkem překlad rozbil.
+[Code]
+function JeTichaInstalace(): Boolean;
+begin
+  Result := WizardSilent;
+end;

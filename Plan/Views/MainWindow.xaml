@@ -292,6 +292,34 @@
                                             </Style>
                                         </StackPanel.Style>
 
+                                        <!-- Přepínač stromu milníků. Místo si drží i zakázka
+                                             bez milníků, aby názvy zůstaly zarovnané. -->
+                                        <Button Width="16"
+                                                Height="16"
+                                                Padding="0"
+                                                Margin="0,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Background="#F2F4F7"
+                                                BorderBrush="#C7CDD5"
+                                                BorderThickness="1"
+                                                Foreground="#3C4653"
+                                                FontSize="12"
+                                                FontWeight="Bold"
+                                                Content="{Binding ZnakPrepinace}"
+                                                ToolTip="{Binding PopisPrepinace}"
+                                                Click="Tabulka_PrepnoutRozbaleni">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Visibility" Value="Hidden" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding LzeRozbalit}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
                                         <TextBlock Text="{Binding Spojnice}"
                                                    Foreground="#A9B2BE"
                                                    FontFamily="Consolas" />
