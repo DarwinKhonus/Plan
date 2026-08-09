@@ -70,4 +70,15 @@ public class PracovniKalendar
     /// <summary>Odhad pracovních hodin v intervalu = pracovní dny × hodin/den.</summary>
     public double OdhadHodin(DateOnly od, DateOnly doVcetne) =>
         PocetPracovnichDnu(od, doVcetne) * _nastaveni.HodinDenne;
+
+    /// <summary>
+    /// Počet pracovních dnů napříč úseky. Den pokrytý víc úseky se počítá jednou,
+    /// aby překrývající se úseky nenafoukly odhad.
+    /// </summary>
+    public int PocetPracovnichDnu(IEnumerable<Rozsah> useky) =>
+        UsekyNormalizace.PokryteDny(useky).Count(JePracovniDen);
+
+    /// <summary>Odhad pracovních hodin napříč úseky zakázky.</summary>
+    public double OdhadHodin(IEnumerable<Rozsah> useky) =>
+        PocetPracovnichDnu(useky) * _nastaveni.HodinDenne;
 }

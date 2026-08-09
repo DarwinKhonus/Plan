@@ -107,15 +107,36 @@
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Auto">
                         <controls:CasovaOsa x:Name="Osa"
-                                            ContextMenu="{StaticResource NabidkaZakazky}"
-                                            Tag="{Binding}"
+                                            ContextMenuOpening="Osa_ContextMenuOpening"
                                             Zakazky="{Binding Zakazky}"
                                             Kalendar="{Binding Kalendar}"
                                             VybranaZakazka="{Binding VybranaZakazka, Mode=TwoWay}"
                                             PrvniDen="{Binding PrvniDen}"
                                             PocetDnu="{Binding PocetDnu}"
                                             SirkaDne="{Binding SirkaDne}"
-                                            TerminZmenen="Osa_TerminZmenen" />
+                                            UsekZmenen="Osa_UsekZmenen">
+                            <controls:CasovaOsa.ContextMenu>
+                                <!--
+                                    Vlastní nabídka osy: položky pro úseky a milníky potřebují
+                                    vědět, na který den a úsek se kliklo, což tabulka nemá.
+                                    Obsluha je proto v code-behind, ne přes příkazy ViewModelu.
+                                -->
+                                <ContextMenu>
+                                    <MenuItem Header="Info" FontWeight="SemiBold" Click="Nabidka_Info" />
+                                    <Separator />
+                                    <MenuItem x:Name="PolozkaRozdelit" Header="Rozdělit zde" Click="Nabidka_RozdelitZde" />
+                                    <MenuItem x:Name="PolozkaOdstranitUsek" Header="Odstranit tento úsek" Click="Nabidka_OdstranitUsek" />
+                                    <Separator />
+                                    <MenuItem x:Name="PolozkaPridatMilnik" Header="Přidat milník zde…" Click="Nabidka_PridatMilnik" />
+                                    <MenuItem x:Name="PolozkaOdebratMilnik" Header="Odebrat milník" Click="Nabidka_OdebratMilnik" />
+                                    <Separator />
+                                    <MenuItem x:Name="PolozkaUpravit" Header="Upravit" InputGestureText="F2" Click="Nabidka_Upravit" />
+                                    <MenuItem x:Name="PolozkaSmazat" Header="Smazat" InputGestureText="Del" Click="Nabidka_Smazat" />
+                                    <Separator />
+                                    <MenuItem Header="Přidat zakázku" InputGestureText="Ctrl+N" Click="Nabidka_PridatZakazku" />
+                                </ContextMenu>
+                            </controls:CasovaOsa.ContextMenu>
+                        </controls:CasovaOsa>
                     </ScrollViewer>
 
                     <TextBlock Text="Zatím žádné zakázky. Přidejte první tlačítkem Přidat."
@@ -172,6 +193,8 @@
                         <DataGridTextColumn Header="Termín od" Binding="{Binding DatumOd, StringFormat=d}" Width="110" />
                         <DataGridTextColumn Header="Termín do" Binding="{Binding DatumDo, StringFormat=d}" Width="110" />
                         <DataGridTextColumn Header="Dnů" Binding="{Binding PocetDnu}" Width="60" />
+                        <DataGridTextColumn Header="Úseků" Binding="{Binding PocetUseku}" Width="60" />
+                        <DataGridTextColumn Header="Pracovních dnů" Binding="{Binding PocetPracovnichDnu}" Width="110" />
                         <DataGridTextColumn Header="Odhad hodin" Binding="{Binding OdhadHodin, StringFormat={}{0:0.#} h}" Width="100" />
 
                         <DataGridTemplateColumn Header="Stav" Width="100">

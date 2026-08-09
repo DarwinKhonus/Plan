@@ -5,12 +5,18 @@ namespace Plan.Tests;
 
 public class KolizeDetektorTests
 {
-    private static Zakazka Z(int id, string od, string doVcetne) => new()
+    /// <summary>Zakázka s jedním úsekem.</summary>
+    private static Zakazka Z(int id, string od, string doVcetne) =>
+        ZU(id, (od, doVcetne));
+
+    /// <summary>Zakázka s libovolným počtem úseků.</summary>
+    private static Zakazka ZU(int id, params (string Od, string Do)[] useky) => new()
     {
         Id = id,
         Nazev = $"Zakázka {id}",
-        DatumOd = DateOnly.Parse(od),
-        DatumDo = DateOnly.Parse(doVcetne),
+        Useky = useky
+            .Select(u => new Usek { DatumOd = DateOnly.Parse(u.Od), DatumDo = DateOnly.Parse(u.Do) })
+            .ToList(),
     };
 
     [Fact]
@@ -109,6 +115,77 @@ public class KolizeDetektorTests
         var zakazky = new[] { Z(1, "2026-03-01", "2026-03-10") };
 
         Assert.Empty(KolizeDetektor.NajdiKolidujici(zakazky));
+    }
+
+    // --- Zakázky rozdělené na víc úseků ---
+
+    [Fact]
+    public void Pauza_mezi_useky_neblokuje_jinou_zakazku()
+    {
+        // A pracuje 3.–7. 8. a pak zase 17.–21. 8.; mezi tím se na ní nedělá.
+        var a = ZU(1, ("2026-08-03", "2026-08-07"), ("2026-08-17", "2026-08-21"));
+        var b = Z(2, "2026-08-10", "2026-08-14");
+
+        Assert.False(KolizeDetektor.Koliduji(a, b, Kalendar()));
+    }
+
+    [Fact]
+    public void Prekryv_s_druhym_usekem_je_kolize()
+    {
+        var a = ZU(1, ("2026-08-03", "2026-08-07"), ("2026-08-17", "2026-08-21"));
+        var b = Z(2, "2026-08-19", "2026-08-25");
+
+        Assert.True(KolizeDetektor.Koliduji(a, b, Kalendar()));
+    }
+
+    [Fact]
+    public void Zakazka_v_pauze_jine_zakazky_neni_v_konfliktu()
+    {
+        var zakazky = new[]
+        {
+            ZU(1, ("2026-08-03", "2026-08-07"), ("2026-08-17", "2026-08-21")),
+            Z(2, "2026-08-10", "2026-08-14"),
+        };
+
+        Assert.Empty(KolizeDetektor.NajdiKolidujici(zakazky, Kalendar()));
+    }
+
+    [Fact]
+    public void Celkovy_rozsah_je_od_prvniho_do_posledniho_useku()
+    {
+        var a = ZU(1, ("2026-08-17", "2026-08-21"), ("2026-08-03", "2026-08-07"));
+
+        Assert.Equal(new DateOnly(2026, 8, 3), a.DatumOd);
+        Assert.Equal(new DateOnly(2026, 8, 21), a.DatumDo);
+    }
+
+    /// <summary>
+    /// Předčasné ukončení vnitřní smyčky v NajdiKolidujici se řídí celkovým rozsahem.
+    /// U zakázky s dlouhou pauzou je rozsah mnohem širší než skutečná práce, což nesmí
+    /// vést k přehlédnutí kolize u zakázek seřazených za ní.
+    /// </summary>
+    [Fact]
+    public void Dlouha_pauza_neprekazi_nalezeni_pozdejsi_kolize()
+    {
+        var zakazky = new[]
+        {
+            ZU(1, ("2026-08-03", "2026-08-04"), ("2026-12-01", "2026-12-10")),
+            Z(2, "2026-09-01", "2026-09-04"),
+            Z(3, "2026-12-08", "2026-12-15"),
+        };
+
+        var kolidujici = KolizeDetektor.NajdiKolidujici(zakazky, Kalendar());
+
+        Assert.Equal(new HashSet<int> { 1, 3 }, kolidujici);
+    }
+
+    [Fact]
+    public void Zakazka_bez_useku_se_neuvazuje()
+    {
+        var prazdna = new Zakazka { Id = 9, Nazev = "Bez termínu" };
+        var zakazky = new[] { prazdna, Z(1, "2026-08-03", "2026-08-07") };
+
+        Assert.Empty(KolizeDetektor.NajdiKolidujici(zakazky, Kalendar()));
     }
 
     // --- Zohlednění pracovních dnů (Po–Pá, svátky nepracovní) ---

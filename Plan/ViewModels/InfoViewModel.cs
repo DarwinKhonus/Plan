@@ -26,42 +26,63 @@ public class InfoViewModel
         MaKolizi = zakazka.MaKolizi;
         Stav = zakazka.MaKolizi ? "Konflikt s jinou zakázkou" : "Bez konfliktu";
 
-        var pracovnichDnu = kalendar.PocetPracovnichDnu(zakazka.DatumOd, zakazka.DatumDo);
-        var nepracovnichDnu = zakazka.PocetDnu - pracovnichDnu;
+        var pracovnichDnu = kalendar.PocetPracovnichDnu(zakazka.Rozsahy);
+        var pokrytychDnu = UsekyNormalizace.PokryteDny(zakazka.Rozsahy).Count;
+        var nepracovnichDnu = pokrytychDnu - pracovnichDnu;
         var hodinDenne = kalendar.Nastaveni.HodinDenne;
 
         KolidujiciZakazky = NajdiKolidujici(zakazka, vsechnyZakazky, kalendar);
 
-        Radky =
-        [
-            new InfoRadek(
+        Useky = zakazka.Useky
+            .OrderBy(u => u.DatumOd)
+            .Select(u =>
+                $"{u.DatumOd.ToString(FormatData, kultura)} – {u.DatumDo.ToString(FormatData, kultura)}"
+                + $"  ({u.PocetDnu} {SklonujDny(u.PocetDnu)})")
+            .ToList();
+
+        Milniky = zakazka.Milniky
+            .OrderBy(m => m.Datum)
+            .Select(m => $"{m.Datum.ToString(FormatData, kultura)}  ·  {m.Nazev}")
+            .ToList();
+
+        var radky = new List<InfoRadek>
+        {
+            new(
                 "Termín",
                 $"{zakazka.DatumOd.ToString(FormatData, kultura)} – {zakazka.DatumDo.ToString(FormatData, kultura)}"),
 
-            new InfoRadek(
+            new(
                 "Délka termínu",
                 $"{zakazka.PocetDnu} {SklonujDny(zakazka.PocetDnu)}"),
+        };
 
-            new InfoRadek(
-                "Pracovních dnů",
-                $"{pracovnichDnu} {SklonujDny(pracovnichDnu)}"),
+        // U rozdělené zakázky je rozdíl mezi celkovým rozsahem a skutečně pokrytými dny
+        // podstatný, u nerozdělené by šlo o zbytečný řádek se stejným číslem.
+        if (zakazka.JeRozdelena)
+        {
+            radky.Add(new InfoRadek(
+                "Z toho pokryto úseky",
+                $"{pokrytychDnu} {SklonujDny(pokrytychDnu)} v {zakazka.PocetUseku} {SklonujUseky(zakazka.PocetUseku)}"));
+        }
 
-            new InfoRadek(
-                "Nepracovních dnů",
-                $"{nepracovnichDnu} {SklonujDny(nepracovnichDnu)} (víkendy a svátky)"),
+        radky.Add(new InfoRadek("Pracovních dnů", $"{pracovnichDnu} {SklonujDny(pracovnichDnu)}"));
+        radky.Add(new InfoRadek(
+            "Nepracovních dnů",
+            $"{nepracovnichDnu} {SklonujDny(nepracovnichDnu)} (víkendy a svátky)"));
 
-            new InfoRadek(
-                "Odhad hodin",
-                string.Format(
-                    kultura,
-                    "{0:0.#} h  ({1} × {2:0.#} h/den)",
-                    zakazka.OdhadHodin,
-                    pracovnichDnu,
-                    hodinDenne)),
+        radky.Add(new InfoRadek(
+            "Odhad hodin",
+            string.Format(
+                kultura,
+                "{0:0.#} h  ({1} × {2:0.#} h/den)",
+                zakazka.OdhadHodin,
+                pracovnichDnu,
+                hodinDenne)));
 
-            new InfoRadek("Vytvořeno", zakazka.VytvorenoUtc.ToLocalTime().ToString(FormatCasu, kultura)),
-            new InfoRadek("Naposledy upraveno", zakazka.UpravenoUtc.ToLocalTime().ToString(FormatCasu, kultura)),
-        ];
+        radky.Add(new InfoRadek("Vytvořeno", zakazka.VytvorenoUtc.ToLocalTime().ToString(FormatCasu, kultura)));
+        radky.Add(new InfoRadek("Naposledy upraveno", zakazka.UpravenoUtc.ToLocalTime().ToString(FormatCasu, kultura)));
+
+        Radky = radky;
     }
 
     public string Nazev { get; }
@@ -75,6 +96,15 @@ public class InfoViewModel
     public IReadOnlyList<string> KolidujiciZakazky { get; }
 
     public bool MaSeznamKolizi => KolidujiciZakazky.Count > 0;
+
+    public IReadOnlyList<string> Useky { get; }
+
+    /// <summary>Výpis úseků má smysl jen u rozdělené zakázky; jinak jen opakuje termín.</summary>
+    public bool MaSeznamUseku => Useky.Count > 1;
+
+    public IReadOnlyList<string> Milniky { get; }
+
+    public bool MaSeznamMilniku => Milniky.Count > 0;
 
     private static List<string> NajdiKolidujici(
         ZakazkaViewModel zakazka,
@@ -96,5 +126,12 @@ public class InfoViewModel
         1 => "den",
         >= 2 and <= 4 => "dny",
         _ => "dnů",
+    };
+
+    private static string SklonujUseky(int pocet) => pocet switch
+    {
+        1 => "úseku",
+        >= 2 and <= 4 => "úsecích",
+        _ => "úsecích",
     };
 }

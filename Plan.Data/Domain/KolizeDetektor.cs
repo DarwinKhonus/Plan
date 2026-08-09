@@ -3,42 +3,71 @@ using Plan.Data.Entities;
 namespace Plan.Data.Domain;
 
 /// <summary>
-/// Hledá překryvy termínů zakázek.
+/// Hledá překryvy termínů zakázek. Zakázka může mít víc úseků, takže se porovnává
+/// každý úsek s každým — pauza uprostřed zakázky jinou zakázku neblokuje.
 /// </summary>
 public static class KolizeDetektor
 {
     /// <summary>
-    /// Překrývají se termíny? Intervaly jsou uzavřené na obou koncích, takže dotyk
+    /// Překrývají se rozsahy? Intervaly jsou uzavřené na obou koncích, takže dotyk
     /// konec-na-začátek (A končí 10. 3., B začíná 10. 3.) je překryv — oba dny padnou
     /// na stejný den.
     /// </summary>
-    public static bool SePrekryvaji(Zakazka a, Zakazka b) =>
-        SePrekryvaji(a.DatumOd, a.DatumDo, b.DatumOd, b.DatumDo);
-
     public static bool SePrekryvaji(DateOnly aOd, DateOnly aDo, DateOnly bOd, DateOnly bDo) =>
         aOd <= bDo && aDo >= bOd;
+
+    public static bool SePrekryvaji(Rozsah a, Rozsah b) =>
+        SePrekryvaji(a.Od, a.Do, b.Od, b.Do);
+
+    /// <summary>Překrývají se zakázky aspoň jedním úsekem, bez ohledu na pracovní dny?</summary>
+    public static bool SePrekryvaji(Zakazka a, Zakazka b)
+    {
+        foreach (var usekA in a.Useky)
+        {
+            foreach (var usekB in b.Useky)
+            {
+                if (SePrekryvaji(usekA.DatumOd, usekA.DatumDo, usekB.DatumOd, usekB.DatumDo))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// Kolidují zakázky se zohledněním pracovních dnů? Překryv jen přes víkend nebo
     /// svátek kolize není — uživatel v ten den stejně na žádné z nich nedělá.
-    /// Bez kalendáře se chová jako <see cref="SePrekryvaji(Zakazka, Zakazka)"/>.
+    /// Bez kalendáře stačí holý překryv úseků.
     /// </summary>
     public static bool Koliduji(Zakazka a, Zakazka b, PracovniKalendar? kalendar)
     {
-        if (!SePrekryvaji(a, b))
+        foreach (var usekA in a.Useky)
         {
-            return false;
+            foreach (var usekB in b.Useky)
+            {
+                if (!SePrekryvaji(usekA.DatumOd, usekA.DatumDo, usekB.DatumOd, usekB.DatumDo))
+                {
+                    continue;
+                }
+
+                if (kalendar is null)
+                {
+                    return true;
+                }
+
+                var zacatek = usekA.DatumOd > usekB.DatumOd ? usekA.DatumOd : usekB.DatumOd;
+                var konec = usekA.DatumDo < usekB.DatumDo ? usekA.DatumDo : usekB.DatumDo;
+
+                if (kalendar.ObsahujePracovniDen(zacatek, konec))
+                {
+                    return true;
+                }
+            }
         }
 
-        if (kalendar is null)
-        {
-            return true;
-        }
-
-        var zacatekPrekryvu = a.DatumOd > b.DatumOd ? a.DatumOd : b.DatumOd;
-        var konecPrekryvu = a.DatumDo < b.DatumDo ? a.DatumDo : b.DatumDo;
-
-        return kalendar.ObsahujePracovniDen(zacatekPrekryvu, konecPrekryvu);
+        return false;
     }
 
     /// <summary>
@@ -49,8 +78,14 @@ public static class KolizeDetektor
         IEnumerable<Zakazka> zakazky, PracovniKalendar? kalendar = null)
     {
         // Řazení podle začátku umožní vnitřní smyčku ukončit, jakmile další zakázka
-        // začíná po konci té aktuální — bez toho by to bylo vždy O(n²).
-        var serazene = zakazky.OrderBy(z => z.DatumOd).ThenBy(z => z.DatumDo).ToList();
+        // začíná po konci té aktuální. Krajní data jsou celkovým rozsahem přes všechny
+        // úseky, takže je odhad shora a předčasné ukončení nic nepřeskočí.
+        var serazene = zakazky
+            .Where(z => z.Useky.Count > 0)
+            .OrderBy(z => z.DatumOd)
+            .ThenBy(z => z.DatumDo)
+            .ToList();
+
         var kolidujici = new HashSet<int>();
 
         for (var i = 0; i < serazene.Count; i++)

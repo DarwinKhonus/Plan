@@ -220,12 +220,43 @@ public class MainViewModel : ObservableObject
         await NactiAsync();
     }
 
-    /// <summary>Uloží termín posunutý tažením na časové ose.</summary>
-    public async Task UlozPosunutyTerminAsync(ZakazkaViewModel zakazka)
+    /// <summary>Uloží úsek posunutý tažením na časové ose.</summary>
+    public async Task UlozPosunutyUsekAsync(UsekViewModel usek)
     {
-        await _zakazkyRepository.UlozTerminAsync(zakazka.Id, zakazka.DatumOd, zakazka.DatumDo);
-        SeradZakazky();
-        PrepocitejRozsahOsy();
+        await _zakazkyRepository.UlozUsekAsync(usek.Id, usek.DatumOd, usek.DatumDo);
+
+        // Tažení mohlo úsek nasunout na sousední; repozitář je pak slije,
+        // takže se musí načíst znovu, aby UI odpovídalo databázi.
+        await NactiAsync();
+    }
+
+    /// <summary>Rozdělí úsek ke dni pod kurzorem na dvě navazující části.</summary>
+    public async Task RozdelUsekAsync(UsekViewModel usek, DateOnly den)
+    {
+        if (await _zakazkyRepository.RozdelUsekAsync(usek.Id, den))
+        {
+            await NactiAsync();
+        }
+    }
+
+    public async Task SmazUsekAsync(UsekViewModel usek)
+    {
+        if (await _zakazkyRepository.SmazUsekAsync(usek.Id))
+        {
+            await NactiAsync();
+        }
+    }
+
+    public async Task PridejMilnikAsync(int zakazkaId, DateOnly datum, string nazev)
+    {
+        await _zakazkyRepository.PridejMilnikAsync(zakazkaId, datum, nazev.Trim());
+        await NactiAsync();
+    }
+
+    public async Task SmazMilnikAsync(MilnikViewModel milnik)
+    {
+        await _zakazkyRepository.SmazMilnikAsync(milnik.Id);
+        await NactiAsync();
     }
 
     public async Task UlozNastaveniAsync(PracovniNastaveni nastaveni)
@@ -288,7 +319,9 @@ public class MainViewModel : ObservableObject
     {
         foreach (var zakazka in Zakazky)
         {
-            zakazka.OdhadHodin = Kalendar.OdhadHodin(zakazka.DatumOd, zakazka.DatumDo);
+            // Napříč úseky, takže se pauza mezi nimi do odhadu nezapočítá.
+            zakazka.PocetPracovnichDnu = Kalendar.PocetPracovnichDnu(zakazka.Rozsahy);
+            zakazka.OdhadHodin = zakazka.PocetPracovnichDnu * Kalendar.Nastaveni.HodinDenne;
         }
     }
 

@@ -22,6 +22,7 @@ public class CasovaOsa : FrameworkElement
 {
     private const double SirkaUchopuOkraje = 6;
     private const double MinimalniSirkaProUchopy = 20;
+    private const double PolomerMilniku = 7;
 
     private static readonly Brush StetecPozadi = Vytvor("#FFFFFF");
     private static readonly Brush StetecNepracovniDen = Vytvor("#F1F4F8");
@@ -46,6 +47,11 @@ public class CasovaOsa : FrameworkElement
     // Ztmavení nepracovních dnů uvnitř pruhu. Termín je souvislý, ale z osy má být vidět,
     // ve kterých dnech se na zakázce nepracuje.
     private static readonly Brush StetecNepracovniVPruhu = Vytvor("#38000000");
+    private static readonly Brush StetecMilnik = Vytvor("#F5B301");
+    private static readonly Pen PeroMilnik = VytvorPero("#8A6100", 1.5);
+
+    // Přerušovaná linka přes pauzu mezi úseky jedné zakázky.
+    private static readonly Pen PeroSpojnice = VytvorTeckovanePero("#7E93AC", 1.5);
 
     private static readonly Typeface Pismo = new("Segoe UI");
 
@@ -56,7 +62,7 @@ public class CasovaOsa : FrameworkElement
         FocusableProperty.OverrideMetadata(typeof(CasovaOsa), new FrameworkPropertyMetadata(true));
     }
 
-    public event EventHandler<TerminZmenenEventArgs>? TerminZmenen;
+    public event EventHandler<UsekZmenenEventArgs>? UsekZmenen;
 
     #region Dependency properties
 
@@ -131,6 +137,16 @@ public class CasovaOsa : FrameworkElement
         get => (ZakazkaViewModel?)GetValue(VybranaZakazkaProperty);
         set => SetValue(VybranaZakazkaProperty, value);
     }
+
+    /// <summary>
+    /// Kontext posledního pravého kliknutí. Kontextová nabídka podle něj ví, kterého
+    /// úseku, milníku a dne se položky týkají.
+    /// </summary>
+    public UsekViewModel? VybranyUsek { get; private set; }
+
+    public MilnikViewModel? VybranyMilnik { get; private set; }
+
+    public DateOnly DenPodKurzorem { get; private set; }
 
     public PracovniKalendar? Kalendar
     {
@@ -422,8 +438,9 @@ public class CasovaOsa : FrameworkElement
         for (var radek = 0; radek < zakazky.Count; radek++)
         {
             var zakazka = zakazky[radek];
+            var jeVybrana = ReferenceEquals(zakazka, VybranaZakazka);
 
-            if (ReferenceEquals(zakazka, VybranaZakazka))
+            if (jeVybrana)
             {
                 dc.DrawRectangle(
                     StetecVybranyRadek,
@@ -431,40 +448,86 @@ public class CasovaOsa : FrameworkElement
                     new Rect(0, VyskaHlavicky + (radek * VyskaRadku), sirkaOsy, VyskaRadku));
             }
 
-            var obdelnik = ObdelnikPruhu(zakazka, radek);
-            if (obdelnik.Width <= 0)
-            {
-                continue;
-            }
+            VykresliSpojniceUseku(dc, zakazka, radek);
 
-            var jeVybrana = ReferenceEquals(zakazka, VybranaZakazka);
             var vypln = zakazka.MaKolizi ? StetecPruhKolize : StetecPruh;
             var pero = jeVybrana
                 ? PeroVyber
                 : zakazka.MaKolizi ? PeroPruhKolize : PeroPruh;
 
-            dc.DrawRoundedRectangle(vypln, pero, obdelnik, 3, 3);
-            VykresliNepracovniDnyVPruhu(dc, zakazka, obdelnik);
+            // Název nese jen první úsek; opakovat ho na každé části by osu zaplevelilo.
+            var prvni = true;
 
-            var popisek = zakazka.MaKolizi ? $"⚠ {zakazka.Nazev}" : zakazka.Nazev;
-            var text = VytvorText(popisek, 11, StetecTextPruhu, FontWeights.Normal);
-
-            var dostupnaSirka = obdelnik.Width - 10;
-            if (dostupnaSirka > 12)
+            foreach (var usek in zakazka.Useky.OrderBy(u => u.DatumOd))
             {
-                text.MaxTextWidth = dostupnaSirka;
-                text.MaxLineCount = 1;
-                text.Trimming = TextTrimming.CharacterEllipsis;
-                dc.DrawText(text, new Point(obdelnik.X + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2)));
+                var obdelnik = ObdelnikUseku(usek, radek);
+                if (obdelnik.Width <= 0)
+                {
+                    continue;
+                }
+
+                dc.DrawRoundedRectangle(vypln, pero, obdelnik, 3, 3);
+                VykresliNepracovniDnyVUseku(dc, usek, obdelnik);
+
+                if (prvni)
+                {
+                    VykresliPopisek(dc, zakazka, obdelnik);
+                    prvni = false;
+                }
+            }
+
+            VykresliMilniky(dc, zakazka, radek);
+        }
+    }
+
+    private void VykresliPopisek(DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik)
+    {
+        var popisek = zakazka.MaKolizi ? $"⚠ {zakazka.Nazev}" : zakazka.Nazev;
+        var text = VytvorText(popisek, 11, StetecTextPruhu, FontWeights.Normal);
+
+        var dostupnaSirka = obdelnik.Width - 10;
+        if (dostupnaSirka <= 12)
+        {
+            return;
+        }
+
+        text.MaxTextWidth = dostupnaSirka;
+        text.MaxLineCount = 1;
+        text.Trimming = TextTrimming.CharacterEllipsis;
+        dc.DrawText(text, new Point(obdelnik.X + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2)));
+    }
+
+    /// <summary>
+    /// Tenká linka přes pauzy mezi úseky, aby bylo poznat, že části patří jedné zakázce
+    /// a nejde o dvě různé.
+    /// </summary>
+    private void VykresliSpojniceUseku(DrawingContext dc, ZakazkaViewModel zakazka, int radek)
+    {
+        if (zakazka.Useky.Count < 2)
+        {
+            return;
+        }
+
+        var serazene = zakazka.Useky.OrderBy(u => u.DatumOd).ToList();
+        var y = VyskaHlavicky + (radek * VyskaRadku) + (VyskaRadku / 2);
+
+        for (var i = 0; i < serazene.Count - 1; i++)
+        {
+            var konecPredchoziho = ObdelnikUseku(serazene[i], radek).Right;
+            var zacatekDalsiho = ObdelnikUseku(serazene[i + 1], radek).Left;
+
+            if (zacatekDalsiho > konecPredchoziho)
+            {
+                dc.DrawLine(PeroSpojnice, new Point(konecPredchoziho, y), new Point(zacatekDalsiho, y));
             }
         }
     }
 
     /// <summary>
-    /// Ztmaví dny uvnitř pruhu, ve kterých se nepracuje. Pruh zůstává souvislý, protože
-    /// termín souvislý je — jen z něj má být poznat, které dny se do odhadu hodin nepočítají.
+    /// Ztmaví dny uvnitř úseku, ve kterých se nepracuje. Úsek zůstává souvislý, protože
+    /// souvislý je — jen z něj má být poznat, které dny se do odhadu hodin nepočítají.
     /// </summary>
-    private void VykresliNepracovniDnyVPruhu(DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik)
+    private void VykresliNepracovniDnyVUseku(DrawingContext dc, UsekViewModel usek, Rect obdelnik)
     {
         var kalendar = Kalendar;
         if (kalendar is null)
@@ -477,7 +540,7 @@ public class CasovaOsa : FrameworkElement
         tvarPruhu.Freeze();
         dc.PushClip(tvarPruhu);
 
-        for (var den = zakazka.DatumOd; den <= zakazka.DatumDo; den = den.AddDays(1))
+        for (var den = usek.DatumOd; den <= usek.DatumDo; den = den.AddDays(1))
         {
             if (kalendar.JePracovniDen(den))
             {
@@ -494,6 +557,36 @@ public class CasovaOsa : FrameworkElement
         dc.Pop();
     }
 
+    private void VykresliMilniky(DrawingContext dc, ZakazkaViewModel zakazka, int radek)
+    {
+        foreach (var milnik in zakazka.Milniky)
+        {
+            var stred = StredMilniku(milnik, radek);
+            dc.DrawGeometry(StetecMilnik, PeroMilnik, TvarMilniku(stred));
+        }
+    }
+
+    /// <summary>Kosočtverec se špičkami nahoru a dolů, vystředěný na den milníku.</summary>
+    private static StreamGeometry TvarMilniku(Point stred)
+    {
+        var geometrie = new StreamGeometry();
+
+        using (var kontext = geometrie.Open())
+        {
+            kontext.BeginFigure(new Point(stred.X, stred.Y - PolomerMilniku), true, true);
+            kontext.LineTo(new Point(stred.X + PolomerMilniku, stred.Y), true, true);
+            kontext.LineTo(new Point(stred.X, stred.Y + PolomerMilniku), true, true);
+            kontext.LineTo(new Point(stred.X - PolomerMilniku, stred.Y), true, true);
+        }
+
+        geometrie.Freeze();
+        return geometrie;
+    }
+
+    private Point StredMilniku(MilnikViewModel milnik, int radek) => new(
+        ((milnik.Datum.DayNumber - PrvniDen.DayNumber) * SirkaDne) + (SirkaDne / 2),
+        VyskaHlavicky + (radek * VyskaRadku) + (VyskaRadku / 2));
+
     private void VykresliDnesniDen(DrawingContext dc, double vyska)
     {
         var dnes = DateOnly.FromDateTime(DateTime.Today);
@@ -509,12 +602,12 @@ public class CasovaOsa : FrameworkElement
         dc.DrawLine(PeroDnes, new Point(x, VyskaHlavicky), new Point(x, vyska));
     }
 
-    private Rect ObdelnikPruhu(ZakazkaViewModel zakazka, int radek)
+    private Rect ObdelnikUseku(UsekViewModel usek, int radek)
     {
         const double svisleOdsazeni = 5;
 
-        var zacatek = (zakazka.DatumOd.DayNumber - PrvniDen.DayNumber) * SirkaDne;
-        var sirka = zakazka.PocetDnu * SirkaDne;
+        var zacatek = (usek.DatumOd.DayNumber - PrvniDen.DayNumber) * SirkaDne;
+        var sirka = usek.PocetDnu * SirkaDne;
         var y = VyskaHlavicky + (radek * VyskaRadku) + svisleOdsazeni;
         var vyska = VyskaRadku - (2 * svisleOdsazeni);
 
@@ -546,34 +639,42 @@ public class CasovaOsa : FrameworkElement
             return;
         }
 
-        Cursor = ZjistiZonu(pozice) switch
+        var zasah = ZjistiZasah(pozice);
+
+        Cursor = zasah.Zona switch
         {
-            (not null, Zona.LevyOkraj) or (not null, Zona.PravyOkraj) => Cursors.SizeWE,
-            (not null, Zona.Telo) => Cursors.SizeAll,
+            Zona.LevyOkraj or Zona.PravyOkraj => Cursors.SizeWE,
+            Zona.Telo => Cursors.SizeAll,
+            Zona.Milnik => Cursors.Hand,
             _ => Cursors.Arrow,
         };
+
+        ToolTip = zasah.Milnik is { } milnik
+            ? $"{milnik.Nazev} — {milnik.Datum:d. M. yyyy}"
+            : null;
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
 
-        var (zakazka, zona) = ZjistiZonu(e.GetPosition(this));
-        if (zakazka is null)
+        var zasah = ZjistiZasah(e.GetPosition(this));
+        VybranaZakazka = zasah.Zakazka;
+
+        // Milníky se netáhnou — přesouvají se smazáním a novým přidáním.
+        if (zasah.Usek is null || zasah.Zona is Zona.Zadna or Zona.Milnik)
         {
-            VybranaZakazka = null;
             return;
         }
 
-        VybranaZakazka = zakazka;
-
         _tazeni = new TazeniStav
         {
-            Zakazka = zakazka,
-            Zona = zona,
+            Zakazka = zasah.Zakazka!,
+            Usek = zasah.Usek,
+            Zona = zasah.Zona,
             VychoziX = e.GetPosition(this).X,
-            PuvodniOd = zakazka.DatumOd,
-            PuvodniDo = zakazka.DatumDo,
+            PuvodniOd = zasah.Usek.DatumOd,
+            PuvodniDo = zasah.Usek.DatumDo,
         };
 
         CaptureMouse();
@@ -581,8 +682,8 @@ public class CasovaOsa : FrameworkElement
     }
 
     /// <summary>
-    /// Pravé tlačítko jen přenese výběr na zakázku pod kurzorem, aby se kontextová
-    /// nabídka otevřela nad tou správnou. Samotnou nabídku pak zobrazí WPF.
+    /// Pravé tlačítko jen přenese výběr, aby se kontextová nabídka vztahovala ke správné
+    /// zakázce, úseku a dni. Samotnou nabídku pak zobrazí WPF.
     /// </summary>
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
@@ -595,8 +696,12 @@ public class CasovaOsa : FrameworkElement
             return;
         }
 
-        var (zakazka, _) = ZjistiZonu(e.GetPosition(this));
-        VybranaZakazka = zakazka;
+        var zasah = ZjistiZasah(e.GetPosition(this));
+
+        VybranaZakazka = zasah.Zakazka;
+        VybranyUsek = zasah.Usek;
+        VybranyMilnik = zasah.Milnik;
+        DenPodKurzorem = DenNaPozici(e.GetPosition(this));
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
@@ -613,12 +718,9 @@ public class CasovaOsa : FrameworkElement
         ReleaseMouseCapture();
 
         // Do databáze se zapisuje až tady — během tažení by se jinak uložily desítky mezistavů.
-        if (tazeni.Zakazka.DatumOd != tazeni.PuvodniOd || tazeni.Zakazka.DatumDo != tazeni.PuvodniDo)
+        if (tazeni.Usek.DatumOd != tazeni.PuvodniOd || tazeni.Usek.DatumDo != tazeni.PuvodniDo)
         {
-            TerminZmenen?.Invoke(this, new TerminZmenenEventArgs(
-                tazeni.Zakazka,
-                tazeni.Zakazka.DatumOd,
-                tazeni.Zakazka.DatumDo));
+            UsekZmenen?.Invoke(this, new UsekZmenenEventArgs(tazeni.Zakazka, tazeni.Usek));
         }
 
         e.Handled = true;
@@ -635,8 +737,8 @@ public class CasovaOsa : FrameworkElement
             return;
         }
 
-        _tazeni.Zakazka.DatumOd = _tazeni.PuvodniOd;
-        _tazeni.Zakazka.DatumDo = _tazeni.PuvodniDo;
+        _tazeni.Usek.DatumOd = _tazeni.PuvodniOd;
+        _tazeni.Usek.DatumDo = _tazeni.PuvodniDo;
         _tazeni = null;
         InvalidateVisual();
     }
@@ -649,63 +751,93 @@ public class CasovaOsa : FrameworkElement
         switch (tazeni.Zona)
         {
             case Zona.Telo:
-                tazeni.Zakazka.DatumOd = tazeni.PuvodniOd.AddDays(posunDnu);
-                tazeni.Zakazka.DatumDo = tazeni.PuvodniDo.AddDays(posunDnu);
+                tazeni.Usek.DatumOd = tazeni.PuvodniOd.AddDays(posunDnu);
+                tazeni.Usek.DatumDo = tazeni.PuvodniDo.AddDays(posunDnu);
                 break;
 
             case Zona.LevyOkraj:
-                // Začátek nesmí přeskočit konec — zakázka má vždy aspoň jeden den.
+                // Začátek nesmí přeskočit konec — úsek má vždy aspoň jeden den.
                 var novyOd = tazeni.PuvodniOd.AddDays(posunDnu);
-                tazeni.Zakazka.DatumOd = novyOd > tazeni.PuvodniDo ? tazeni.PuvodniDo : novyOd;
+                tazeni.Usek.DatumOd = novyOd > tazeni.PuvodniDo ? tazeni.PuvodniDo : novyOd;
                 break;
 
             case Zona.PravyOkraj:
                 var novyDo = tazeni.PuvodniDo.AddDays(posunDnu);
-                tazeni.Zakazka.DatumDo = novyDo < tazeni.PuvodniOd ? tazeni.PuvodniOd : novyDo;
+                tazeni.Usek.DatumDo = novyDo < tazeni.PuvodniOd ? tazeni.PuvodniOd : novyDo;
                 break;
         }
 
         InvalidateVisual();
     }
 
-    private (ZakazkaViewModel? Zakazka, Zona Zona) ZjistiZonu(Point pozice)
+    /// <summary>Den, na který ukazuje daná vodorovná pozice.</summary>
+    private DateOnly DenNaPozici(Point pozice) =>
+        PrvniDen.AddDays(Math.Clamp((int)(pozice.X / SirkaDne), 0, Math.Max(PocetDnu - 1, 0)));
+
+    private Zasah ZjistiZasah(Point pozice)
     {
         if (pozice.Y < VyskaHlavicky)
         {
-            return (null, Zona.Zadna);
+            return Zasah.Zadny;
         }
 
         var radek = (int)((pozice.Y - VyskaHlavicky) / VyskaRadku);
         var zakazky = AktualniZakazky();
         if (radek < 0 || radek >= zakazky.Count)
         {
-            return (null, Zona.Zadna);
+            return Zasah.Zadny;
         }
 
         var zakazka = zakazky[radek];
-        var obdelnik = ObdelnikPruhu(zakazka, radek);
-        if (!obdelnik.Contains(pozice))
+
+        // Milník leží nad pruhem, takže se testuje první.
+        foreach (var milnik in zakazka.Milniky)
         {
-            return (null, Zona.Zadna);
+            var stred = StredMilniku(milnik, radek);
+            if (Math.Abs(pozice.X - stred.X) + Math.Abs(pozice.Y - stred.Y) <= PolomerMilniku)
+            {
+                return new Zasah(zakazka, null, milnik, Zona.Milnik);
+            }
         }
 
-        // U úzkých pruhů by se úchopy okrajů překryly a tělo by nešlo chytit vůbec.
-        if (obdelnik.Width < MinimalniSirkaProUchopy)
+        foreach (var usek in zakazka.Useky)
         {
-            return (zakazka, Zona.Telo);
+            var obdelnik = ObdelnikUseku(usek, radek);
+            if (!obdelnik.Contains(pozice))
+            {
+                continue;
+            }
+
+            // U úzkých pruhů by se úchopy okrajů překryly a tělo by nešlo chytit vůbec.
+            if (obdelnik.Width < MinimalniSirkaProUchopy)
+            {
+                return new Zasah(zakazka, usek, null, Zona.Telo);
+            }
+
+            if (pozice.X - obdelnik.Left <= SirkaUchopuOkraje)
+            {
+                return new Zasah(zakazka, usek, null, Zona.LevyOkraj);
+            }
+
+            if (obdelnik.Right - pozice.X <= SirkaUchopuOkraje)
+            {
+                return new Zasah(zakazka, usek, null, Zona.PravyOkraj);
+            }
+
+            return new Zasah(zakazka, usek, null, Zona.Telo);
         }
 
-        if (pozice.X - obdelnik.Left <= SirkaUchopuOkraje)
-        {
-            return (zakazka, Zona.LevyOkraj);
-        }
+        // Prázdné místo v řádku zakázky: zakázka se vybere, ale nic se netáhne.
+        return new Zasah(zakazka, null, null, Zona.Zadna);
+    }
 
-        if (obdelnik.Right - pozice.X <= SirkaUchopuOkraje)
-        {
-            return (zakazka, Zona.PravyOkraj);
-        }
-
-        return (zakazka, Zona.Telo);
+    private readonly record struct Zasah(
+        ZakazkaViewModel? Zakazka,
+        UsekViewModel? Usek,
+        MilnikViewModel? Milnik,
+        Zona Zona)
+    {
+        public static Zasah Zadny => new(null, null, null, Zona.Zadna);
     }
 
     private enum Zona
@@ -714,11 +846,14 @@ public class CasovaOsa : FrameworkElement
         Telo,
         LevyOkraj,
         PravyOkraj,
+        Milnik,
     }
 
     private class TazeniStav
     {
         public required ZakazkaViewModel Zakazka { get; init; }
+
+        public required UsekViewModel Usek { get; init; }
 
         public required Zona Zona { get; init; }
 

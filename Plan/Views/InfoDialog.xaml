@@ -79,6 +79,32 @@
             </ItemsControl.ItemTemplate>
         </ItemsControl>
 
+        <!-- Rozpis úseků, jen u rozdělené zakázky -->
+        <StackPanel Visibility="{Binding MaSeznamUseku, Converter={StaticResource BoolNaViditelnost}}">
+            <Separator Margin="0,10,0,12" />
+            <TextBlock Text="Úseky" Foreground="#8A94A3" Margin="0,0,0,6" />
+            <ItemsControl ItemsSource="{Binding Useky}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#2C3542" Margin="0,0,0,4" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <!-- Milníky, jen když nějaké jsou -->
+        <StackPanel Visibility="{Binding MaSeznamMilniku, Converter={StaticResource BoolNaViditelnost}}">
+            <Separator Margin="0,10,0,12" />
+            <TextBlock Text="Milníky" Foreground="#8A94A3" Margin="0,0,0,6" />
+            <ItemsControl ItemsSource="{Binding Milniky}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}" Foreground="#8A6100" Margin="0,0,0,4" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
         <!-- Seznam kolidujících zakázek, jen když nějaké jsou -->
         <StackPanel Visibility="{Binding MaSeznamKolizi, Converter={StaticResource BoolNaViditelnost}}">
             <Separator Margin="0,10,0,12" />

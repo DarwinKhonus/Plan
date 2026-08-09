@@ -11,6 +11,10 @@ kontakty ani obchodní historii.
 - **Zakázky** — název a termín od–do, přidání, úprava, smazání
 - **Časová osa** — řádek na zakázku, tažením pruhu se termín posune, tažením okraje se
   protáhne jen začátek nebo konec; změna se ukládá hned
+- **Rozdělení na úseky** — zakázku lze pravým tlačítkem rozdělit na víc částí a mezi ně
+  vložit pauzu; pauza se nepočítá do hodin a neblokuje jiné zakázky
+- **Milníky** — jednodenní značka v řádku zakázky (předání, dodání materiálu)
+- **Info** — přehled o zakázce pod pravým tlačítkem nebo F1
 - **Detekce kolizí** — překrývající se zakázky se zvýrazní v ose i v tabulce a přepočítají
   se při každé změně; překryv pouze v nepracovní dny se za konflikt nepovažuje
 - **Pracovní doba** — nastavitelné pracovní dny, časový rozsah a zohlednění českých
@@ -132,4 +136,8 @@ dotnet publish Plan/Plan.csproj -c Release -r win-x64 --self-contained true -p:P
   souvislý, ale je vidět, které dny se do odhadu hodin nepočítají.
 - **Časová osa se kreslí ručně** místo skládání z WPF prvků — při stovkách dnů × zakázek
   by byl vizuální strom zbytečně těžký a tažení okrajů by se stejně muselo psát ručně.
+- **Termín zakázky je tabulka úseků**, ne dvojice sloupců — jinak by nešlo vložit pauzu.
+  Celkový rozsah `DatumOd`/`DatumDo` se dopočítává z úseků, aby neexistovaly dva zdroje pravdy.
+- **Překrývající se úseky jedné zakázky se slijí**, jen dotýkající se ne — jinak by se
+  rozdělení zakázky okamžitě samo vrátilo zpátky.
 - **Self-contained build** — uživatel nemusí řešit instalaci .NET runtime.

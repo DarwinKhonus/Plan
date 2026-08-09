@@ -143,9 +143,79 @@ public partial class MainWindow : Window
         }
     }
 
-    private async void Osa_TerminZmenen(object? sender, TerminZmenenEventArgs e)
+    private async void Osa_UsekZmenen(object? sender, UsekZmenenEventArgs e)
     {
-        await _viewModel.UlozPosunutyTerminAsync(e.Zakazka);
+        await _viewModel.UlozPosunutyUsekAsync(e.Usek);
+    }
+
+    /// <summary>
+    /// Zpřístupní jen ty položky, které dávají v místě kliknutí smysl — rozdělit jde
+    /// jen uvnitř úseku, odebrat milník jen nad milníkem.
+    /// </summary>
+    private void Osa_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        var maZakazku = _viewModel.VybranaZakazka is not null;
+        var usek = Osa.VybranyUsek;
+        var den = Osa.DenPodKurzorem;
+
+        PolozkaUpravit.IsEnabled = maZakazku;
+        PolozkaSmazat.IsEnabled = maZakazku;
+
+        // Rozdělit nelze na prvním dni úseku — jedna z částí by byla prázdná.
+        PolozkaRozdelit.IsEnabled = usek is not null && den > usek.DatumOd && den <= usek.DatumDo;
+
+        PolozkaOdstranitUsek.IsEnabled = usek is not null
+            && _viewModel.VybranaZakazka?.JeRozdelena == true;
+
+        PolozkaPridatMilnik.IsEnabled = maZakazku;
+        PolozkaOdebratMilnik.IsEnabled = Osa.VybranyMilnik is not null;
+    }
+
+    private void Nabidka_Info(object sender, RoutedEventArgs e) => ZobrazitInfo();
+
+    private void Nabidka_Upravit(object sender, RoutedEventArgs e) => UpravitZakazku();
+
+    private void Nabidka_Smazat(object sender, RoutedEventArgs e) => SmazatZakazku();
+
+    private void Nabidka_PridatZakazku(object sender, RoutedEventArgs e) => PridatZakazku();
+
+    private async void Nabidka_RozdelitZde(object sender, RoutedEventArgs e)
+    {
+        if (Osa.VybranyUsek is { } usek)
+        {
+            await _viewModel.RozdelUsekAsync(usek, Osa.DenPodKurzorem);
+        }
+    }
+
+    private async void Nabidka_OdstranitUsek(object sender, RoutedEventArgs e)
+    {
+        if (Osa.VybranyUsek is { } usek)
+        {
+            await _viewModel.SmazUsekAsync(usek);
+        }
+    }
+
+    private async void Nabidka_PridatMilnik(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.VybranaZakazka is not { } zakazka)
+        {
+            return;
+        }
+
+        var dialog = new MilnikDialog(Osa.DenPodKurzorem, zakazka.Nazev) { Owner = this };
+
+        if (dialog.ShowDialog() == true)
+        {
+            await _viewModel.PridejMilnikAsync(zakazka.Id, dialog.Datum, dialog.Nazev);
+        }
+    }
+
+    private async void Nabidka_OdebratMilnik(object sender, RoutedEventArgs e)
+    {
+        if (Osa.VybranyMilnik is { } milnik)
+        {
+            await _viewModel.SmazMilnikAsync(milnik);
+        }
     }
 
     private void Tabulka_MouseDoubleClick(object sender, MouseButtonEventArgs e)
