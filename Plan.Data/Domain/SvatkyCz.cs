@@ -6,8 +6,26 @@ namespace Plan.Data.Domain;
 /// </summary>
 public static class SvatkyCz
 {
+    /// <summary>
+    /// Svátky se pro každý rok spočítají jednou. Bez toho se při každém dotazu skládal
+    /// a řadil seznam třinácti datumů — a časová osa se ptá stokrát na jedno vykreslení.
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, Rocnik> Cache = new();
+
+    private sealed record Rocnik(
+        IReadOnlyList<(DateOnly Datum, string Nazev)> Seznam,
+        Dictionary<DateOnly, string> PodleData);
+
+    private static Rocnik Nacti(int rok) => Cache.GetOrAdd(rok, r =>
+    {
+        var seznam = Spocitej(r);
+        return new Rocnik(seznam, seznam.ToDictionary(s => s.Datum, s => s.Nazev));
+    });
+
     /// <summary>Vrátí všechny svátky daného roku s názvem, seřazené podle data.</summary>
-    public static IReadOnlyList<(DateOnly Datum, string Nazev)> ProRok(int rok)
+    public static IReadOnlyList<(DateOnly Datum, string Nazev)> ProRok(int rok) => Nacti(rok).Seznam;
+
+    private static IReadOnlyList<(DateOnly Datum, string Nazev)> Spocitej(int rok)
     {
         var velikonocniNedele = VelikonocniNedele(rok);
 
@@ -47,22 +65,11 @@ public static class SvatkyCz
         return vysledek;
     }
 
-    public static bool JeSvatek(DateOnly datum) =>
-        ProRok(datum.Year).Any(s => s.Datum == datum);
+    public static bool JeSvatek(DateOnly datum) => Nacti(datum.Year).PodleData.ContainsKey(datum);
 
     /// <summary>Název svátku, nebo <c>null</c> pokud daný den svátek není.</summary>
-    public static string? NazevSvatku(DateOnly datum)
-    {
-        foreach (var (d, nazev) in ProRok(datum.Year))
-        {
-            if (d == datum)
-            {
-                return nazev;
-            }
-        }
-
-        return null;
-    }
+    public static string? NazevSvatku(DateOnly datum) =>
+        Nacti(datum.Year).PodleData.TryGetValue(datum, out var nazev) ? nazev : null;
 
     /// <summary>
     /// Velikonoční neděle podle gregoriánského kalendáře — anonymní gregoriánský

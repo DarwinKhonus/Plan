@@ -74,6 +74,35 @@ public class SvatkyCzTests
         Assert.Equal(svatky.OrderBy(s => s.Datum).Select(s => s.Datum), svatky.Select(s => s.Datum));
     }
 
+    /// <summary>
+    /// Svátky se drží v mezipaměti kvůli výkonu; opakované dotazy proto musí vracet
+    /// stále totéž a nesmí být ovlivněné dřívějším voláním.
+    /// </summary>
+    [Fact]
+    public void Opakovane_dotazy_vraci_stejny_vysledek()
+    {
+        var prvni = SvatkyCz.ProRok(2027).ToList();
+        _ = SvatkyCz.JeSvatek(new DateOnly(2027, 5, 1));
+        _ = SvatkyCz.NazevSvatku(new DateOnly(2027, 12, 24));
+        var druhy = SvatkyCz.ProRok(2027).ToList();
+
+        Assert.Equal(prvni, druhy);
+        Assert.Equal(13, druhy.Count);
+    }
+
+    [Fact]
+    public void JeSvatek_a_ProRok_se_shoduji_napric_roky()
+    {
+        for (var rok = 2024; rok <= 2030; rok++)
+        {
+            foreach (var (datum, nazev) in SvatkyCz.ProRok(rok))
+            {
+                Assert.True(SvatkyCz.JeSvatek(datum));
+                Assert.Equal(nazev, SvatkyCz.NazevSvatku(datum));
+            }
+        }
+    }
+
     [Fact]
     public void ProRozsahLet_pokryva_vsechny_roky()
     {

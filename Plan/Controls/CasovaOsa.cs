@@ -52,7 +52,15 @@ public class CasovaOsa : FrameworkElement
     // Přerušovaná linka přes pauzu mezi úseky jedné zakázky.
     private static readonly Pen PeroSpojnice = VytvorTeckovanePero("#7E93AC", 1.5);
 
+    private static readonly CultureInfo Kultura = CultureInfo.GetCultureInfo("cs-CZ");
+
     private static readonly Typeface Pismo = new("Segoe UI");
+
+    private static readonly Typeface PismoTucne = new(
+        new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+
+    private static readonly Typeface PismoPolotucne = new(
+        new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
 
     private TazeniStav? _tazeni;
 
@@ -134,6 +142,16 @@ public class CasovaOsa : FrameworkElement
         typeof(CasovaOsa),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>
+    /// Šířka viditelné části. Spolu s posunem určuje, které dny se vůbec kreslí —
+    /// bez toho se sázely texty i pro dny mimo okno a vykreslení stálo desítky ms.
+    /// </summary>
+    public static readonly DependencyProperty SirkaViditelnehoOknaProperty = DependencyProperty.Register(
+        nameof(SirkaViditelnehoOkna),
+        typeof(double),
+        typeof(CasovaOsa),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty SirkaDneProperty = DependencyProperty.Register(
         nameof(SirkaDne),
         typeof(double),
@@ -202,6 +220,34 @@ public class CasovaOsa : FrameworkElement
     {
         get => (double)GetValue(VodorovnyPosunProperty);
         set => SetValue(VodorovnyPosunProperty, value);
+    }
+
+    public double SirkaViditelnehoOkna
+    {
+        get => (double)GetValue(SirkaViditelnehoOknaProperty);
+        set => SetValue(SirkaViditelnehoOknaProperty, value);
+    }
+
+    /// <summary>
+    /// Rozsah indexů dnů, které mají smysl kreslit. Když okno svou šířku ještě nenahlásilo,
+    /// kreslí se všechno, aby se nic neztratilo.
+    /// </summary>
+    private (int Prvni, int Posledni) ViditelneDny()
+    {
+        var posledniIndex = Math.Max(PocetDnu - 1, 0);
+
+        if (SirkaViditelnehoOkna <= 0 || SirkaDne <= 0)
+        {
+            return (0, posledniIndex);
+        }
+
+        // Jeden den rezervy na každou stranu, aby na okrajích nechyběly čáry mřížky.
+        var prvni = Math.Max((int)(VodorovnyPosun / SirkaDne) - 1, 0);
+        var posledni = Math.Min(
+            (int)Math.Ceiling((VodorovnyPosun + SirkaViditelnehoOkna) / SirkaDne) + 1,
+            posledniIndex);
+
+        return (prvni, posledni);
     }
 
     public double SirkaDne
@@ -358,7 +404,9 @@ public class CasovaOsa : FrameworkElement
         var kalendar = Kalendar;
         var vyskaObsahu = vyska - VyskaHlavicky;
 
-        for (var i = 0; i < PocetDnu; i++)
+        var (prvniDen, posledniDen) = ViditelneDny();
+
+        for (var i = prvniDen; i <= posledniDen; i++)
         {
             var den = PrvniDen.AddDays(i);
             var x = i * SirkaDne;
@@ -431,10 +479,12 @@ public class CasovaOsa : FrameworkElement
             zacatekUseku = i;
         }
 
-        // Pás s čísly dnů a zkratkou dne v týdnu.
+        // Pás s čísly dnů a zkratkou dne v týdnu. Jen viditelné dny — sazba textu je
+        // nejdražší část vykreslení, takže dny mimo okno se vynechávají.
         var dnes = DateOnly.FromDateTime(DateTime.Today);
+        var (prvniViditelny, posledniViditelny) = ViditelneDny();
 
-        for (var i = 0; i < PocetDnu; i++)
+        for (var i = prvniViditelny; i <= posledniViditelny; i++)
         {
             var den = PrvniDen.AddDays(i);
             var x = i * SirkaDne;
@@ -446,14 +496,12 @@ public class CasovaOsa : FrameworkElement
                 : jeNepracovni ? StetecTextSlaby : StetecText;
             var vaha = jeDnes ? FontWeights.Bold : FontWeights.Normal;
 
-            var cislo = VytvorText(den.Day.ToString(kultura), 11, stetec, vaha);
+            var cislo = VytvorTextZMezipameti(den.Day.ToString(kultura), 11, stetec, vaha);
 
             // Dvoupísmenná zkratka; nejkratší tvar je v češtině nejednoznačný
             // („P“ je pondělí i pátek, „S“ středa i sobota).
-            var zkratka = kultura.TextInfo.ToTitleCase(
-                kultura.DateTimeFormat.AbbreviatedDayNames[(int)den.DayOfWeek]);
-            var denVTydnu = VytvorText(
-                zkratka, 9, jeDnes ? StetecDnes : StetecTextSlaby, vaha);
+            var denVTydnu = VytvorTextZMezipameti(
+                ZkratkaDne(den.DayOfWeek), 9, jeDnes ? StetecDnes : StetecTextSlaby, vaha);
 
             // Obě řádky se vysází jako blok vystředěný ve zbytku hlavičky. Pevná odsazení
             // tu dřív byla — při skutečné výšce písma zkratka přetekla pod hlavičku,
@@ -691,12 +739,46 @@ public class CasovaOsa : FrameworkElement
         return new Rect(zacatek, y, Math.Max(sirka, 0), Math.Max(vyska, 0));
     }
 
+    /// <summary>
+    /// Vysázené texty hlavičky. Sazba FormattedText je líná, ale při kreslení se vynutí
+    /// a stojí většinu času vykreslení — čísla dnů a zkratky dnů se přitom pořád opakují,
+    /// takže se vyplatí je držet.
+    /// </summary>
+    private static readonly Dictionary<(string Text, double Velikost, int Vaha, Brush Stetec), FormattedText>
+        MezipametTextu = [];
+
+    /// <summary>Zkratky dnů se spočítají jednou; ToTitleCase v každém vykreslení je zbytečný.</summary>
+    private static readonly string[] ZkratkyDnu = Enumerable.Range(0, 7)
+        .Select(d => Kultura.TextInfo.ToTitleCase(Kultura.DateTimeFormat.AbbreviatedDayNames[d]))
+        .ToArray();
+
+    private static string ZkratkaDne(DayOfWeek den) => ZkratkyDnu[(int)den];
+
+    private static FormattedText VytvorTextZMezipameti(
+        string text, double velikost, Brush stetec, FontWeight vaha)
+    {
+        var klic = (text, velikost, vaha.ToOpenTypeWeight(), stetec);
+
+        if (!MezipametTextu.TryGetValue(klic, out var vysazeny))
+        {
+            vysazeny = VytvorText(text, velikost, stetec, vaha);
+
+            // Vynutíme sazbu hned, ať ji nezaplatí až první kreslení.
+            _ = vysazeny.Width;
+            MezipametTextu[klic] = vysazeny;
+        }
+
+        return vysazeny;
+    }
+
     private static FormattedText VytvorText(string text, double velikost, Brush stetec, FontWeight vaha) =>
         new(
             text,
-            CultureInfo.GetCultureInfo("cs-CZ"),
+            Kultura,
             FlowDirection.LeftToRight,
-            new Typeface(Pismo.FontFamily, FontStyles.Normal, vaha, FontStretches.Normal),
+            vaha == FontWeights.Bold ? PismoTucne
+                : vaha == FontWeights.SemiBold ? PismoPolotucne
+                : Pismo,
             velikost,
             stetec,
             96);

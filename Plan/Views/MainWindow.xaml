@@ -183,6 +183,7 @@
                                             PrvniDen="{Binding PrvniDen}"
                                             PocetDnu="{Binding PocetDnu}"
                                             SirkaDne="{Binding SirkaDne}"
+                                            SirkaViditelnehoOkna="{Binding SirkaViditelneCasti}"
                                             UsekZmenen="Osa_UsekZmenen"
                                             MilnikKliknut="Osa_MilnikKliknut">
                             <controls:CasovaOsa.ContextMenu>
