@@ -17,6 +17,7 @@ public class NastaveniRepository
     private const string KlicKonecPrace = "KonecPrace";
     private const string KlicZohlednitSvatky = "ZohlednitSvatky";
     private const string KlicAutomatickeRazeni = "AutomatickeRazeni";
+    private const string KlicSrafovatNepracovniDny = "SrafovatNepracovniDny";
 
     private readonly PlanDbFactory _factory;
 
@@ -66,6 +67,12 @@ public class NastaveniRepository
             nastaveni.AutomatickeRazeni = razeniParsed;
         }
 
+        if (zaznamy.TryGetValue(KlicSrafovatNepracovniDny, out var srafovani)
+            && bool.TryParse(srafovani, out var srafovaniParsed))
+        {
+            nastaveni.SrafovatNepracovniDny = srafovaniParsed;
+        }
+
         return nastaveni;
     }
 
@@ -83,6 +90,8 @@ public class NastaveniRepository
             nastaveni.ZohlednitSvatky.ToString(CultureInfo.InvariantCulture));
         await NastavAsync(db, KlicAutomatickeRazeni,
             nastaveni.AutomatickeRazeni.ToString(CultureInfo.InvariantCulture));
+        await NastavAsync(db, KlicSrafovatNepracovniDny,
+            nastaveni.SrafovatNepracovniDny.ToString(CultureInfo.InvariantCulture));
 
         await db.SaveChangesAsync();
     }

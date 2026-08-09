@@ -44,6 +44,9 @@ public class CasovaOsa : FrameworkElement
     private static readonly Pen PeroPruhKolize = VytvorPero("#922B21", 1);
     private static readonly Pen PeroVyber = VytvorPero("#1B3E5E", 2.5);
 
+    // Šrafování nepracovních dnů v pruhu. Poloprůhledné, aby fungovalo nad modrou i červenou.
+    private static readonly Brush StetecSrafovani = VytvorSrafovani("#66FFFFFF", 1.4, 5);
+
     // Název zakázky mimo pruh: tmavý text na podkladu osy.
     private static readonly Brush StetecPopisku = Vytvor("#2C3542");
     private static readonly Brush StetecPopiskuKolize = Vytvor("#922B21");
@@ -645,10 +648,20 @@ public class CasovaOsa : FrameworkElement
 
                 var pracovniUseky = PracovniPodUseky(usek);
 
-                // Výplň jen v pracovních dnech, obrys přes celý úsek. Nad víkendem
-                // a svátkem tak zůstane jen „skořápka“ a prosvítá jí podbarvení osy —
-                // z pruhu je pak vidět, že se v ten den nepracuje.
-                VykresliVyplnUseku(dc, obdelnik, vypln, pracovniUseky);
+                if (Kalendar?.Nastaveni.SrafovatNepracovniDny != false)
+                {
+                    // Plná výplň a nad nepracovními dny šrafování. Pruh drží tvar
+                    // a přesto je z něj vidět, kde se nepracuje.
+                    dc.DrawRoundedRectangle(vypln, null, obdelnik, 3, 3);
+                    VykresliSrafovaniNepracovnich(dc, usek, obdelnik);
+                }
+                else
+                {
+                    // Výplň jen v pracovních dnech; nad víkendem a svátkem zůstane
+                    // jen „skořápka“ a prosvítá jí podbarvení osy.
+                    VykresliVyplnUseku(dc, obdelnik, vypln, pracovniUseky);
+                }
+
                 dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
 
                 obdelnikProPopisek ??= obdelnik;
@@ -700,6 +713,40 @@ public class CasovaOsa : FrameworkElement
         }
 
         return vysledek;
+    }
+
+    /// <summary>
+    /// Přešrafuje dny uvnitř úseku, ve kterých se nepracuje. Kreslí se přes hotovou výplň,
+    /// takže funguje stejně na modrém i na červeném pruhu.
+    /// </summary>
+    private void VykresliSrafovaniNepracovnich(DrawingContext dc, UsekViewModel usek, Rect obdelnik)
+    {
+        var kalendar = Kalendar;
+        if (kalendar is null)
+        {
+            return;
+        }
+
+        // Ořez podle tvaru pruhu, aby šrafování nepřečnívalo přes zaoblené rohy.
+        var tvarPruhu = new RectangleGeometry(obdelnik, 3, 3);
+        tvarPruhu.Freeze();
+        dc.PushClip(tvarPruhu);
+
+        for (var den = usek.DatumOd; den <= usek.DatumDo; den = den.AddDays(1))
+        {
+            if (kalendar.JePracovniDen(den))
+            {
+                continue;
+            }
+
+            var x = XoveProDen(den);
+            dc.DrawRectangle(
+                StetecSrafovani,
+                null,
+                new Rect(x, obdelnik.Y, SirkaDne, obdelnik.Height));
+        }
+
+        dc.Pop();
     }
 
     private void VykresliVyplnUseku(
@@ -1305,6 +1352,34 @@ public class CasovaOsa : FrameworkElement
         var pero = new Pen(Vytvor(hex), tloustka);
         pero.Freeze();
         return pero;
+    }
+
+    /// <summary>
+    /// Šikmé šrafování jako opakovaná dlaždice. Čára jde z rohu do rohu, takže na hranici
+    /// dlaždic plynule pokračuje a vznikne souvislý pruh.
+    /// </summary>
+    private static Brush VytvorSrafovani(string hex, double tloustka, double krok)
+    {
+        var pero = new Pen(Vytvor(hex), tloustka);
+        pero.Freeze();
+
+        var cara = new LineGeometry(new Point(0, krok), new Point(krok, 0));
+        cara.Freeze();
+
+        var kresba = new GeometryDrawing(null, pero, cara);
+        kresba.Freeze();
+
+        var stetec = new DrawingBrush(kresba)
+        {
+            TileMode = TileMode.Tile,
+            Viewport = new Rect(0, 0, krok, krok),
+
+            // Absolutní jednotky, aby hustota šrafování nezávisela na velikosti pruhu.
+            ViewportUnits = BrushMappingMode.Absolute,
+        };
+
+        stetec.Freeze();
+        return stetec;
     }
 
     private static Pen VytvorTeckovanePero(string hex, double tloustka)

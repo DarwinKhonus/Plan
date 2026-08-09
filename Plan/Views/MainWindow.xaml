@@ -305,12 +305,38 @@
                                                 Background="#F2F4F7"
                                                 BorderBrush="#C7CDD5"
                                                 BorderThickness="1"
-                                                Foreground="#3C4653"
-                                                FontSize="12"
-                                                FontWeight="Bold"
-                                                Content="{Binding ZnakPrepinace}"
                                                 ToolTip="{Binding PopisPrepinace}"
                                                 Click="Tabulka_PrepnoutRozbaleni">
+                                            <!--
+                                                Znaménko se kreslí, ne píše. Jako text „+“ a „−“
+                                                sedělo kvůli metrikám písma pod středem čtverečku;
+                                                obdélníky se vystředí přesně.
+                                            -->
+                                            <Grid Width="8" Height="8">
+                                                <Rectangle Width="8"
+                                                           Height="1.5"
+                                                           Fill="#3C4653"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" />
+                                                <Rectangle Width="1.5"
+                                                           Height="8"
+                                                           Fill="#3C4653"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center">
+                                                    <Rectangle.Style>
+                                                        <Style TargetType="Rectangle">
+                                                            <!-- Svislá čárka jen u sbaleného: dává plus. -->
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding JeRozbalena}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Rectangle.Style>
+                                                </Rectangle>
+                                            </Grid>
+
                                             <Button.Style>
                                                 <Style TargetType="Button">
                                                     <Setter Property="Visibility" Value="Hidden" />

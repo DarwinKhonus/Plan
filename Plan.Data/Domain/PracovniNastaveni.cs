@@ -33,6 +33,12 @@ public class PracovniNastaveni
     public bool AutomatickeRazeni { get; set; } = true;
 
     /// <summary>
+    /// Šrafovat nepracovní dny uvnitř pruhu zakázky. Když je vypnuté, výplň se v těch
+    /// dnech vynechá a zůstane jen obrys („skořápka“).
+    /// </summary>
+    public bool SrafovatNepracovniDny { get; set; } = true;
+
+    /// <summary>
     /// Počet hodin na jeden pracovní den, odvozený z rozsahu pracovní doby.
     /// Přes půlnoc se needituje — konec dřív než začátek dává 0.
     /// </summary>
@@ -52,5 +58,6 @@ public class PracovniNastaveni
         KonecPrace = KonecPrace,
         ZohlednitSvatky = ZohlednitSvatky,
         AutomatickeRazeni = AutomatickeRazeni,
+        SrafovatNepracovniDny = SrafovatNepracovniDny,
     };
 }

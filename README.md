@@ -141,8 +141,9 @@ dotnet publish Plan/Plan.csproj -c Release -r win-x64 --self-contained true -p:P
 - **Dotyk termínů se počítá jako kolize** — když jedna zakázka končí 10. 3. a druhá 10. 3.
   začíná, je to týž pracovní den. Pokud ale společný den vyjde na víkend nebo svátek,
   konflikt to není; termín je souvislý interval, ale pracuje se jen v pracovních dnech.
-- **Nepracovní dny se v pruhu ztmavují** místo přerušení pruhu — termín zůstane opticky
-  souvislý, ale je vidět, které dny se do odhadu hodin nepočítají.
+- **Nepracovní dny se v pruhu šrafují** místo přerušení pruhu — termín zůstane opticky
+  souvislý, ale je vidět, které dny se do odhadu hodin nepočítají. Kdo chce místo šrafování
+  jen obrys, přepne si to v nastavení.
 - **Časová osa se kreslí ručně** místo skládání z WPF prvků — při stovkách dnů × zakázek
   by byl vizuální strom zbytečně těžký a tažení okrajů by se stejně muselo psát ručně.
 - **Termín zakázky je tabulka úseků**, ne dvojice sloupců — jinak by nešlo vložit pauzu.

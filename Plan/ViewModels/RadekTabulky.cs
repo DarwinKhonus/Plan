@@ -44,11 +44,6 @@ public class RadekTabulky : ObservableObject, IDisposable
     /// <summary>Zakázka bez milníků přepínač nepotřebuje.</summary>
     public bool LzeRozbalit => !JeMilnik && Zakazka.Milniky.Count > 0;
 
-    /// <summary>
-    /// Znak přepínače. Klasické plus a minus — trojúhelníčky se v malém tlačítku ztrácely.
-    /// </summary>
-    public string ZnakPrepinace => JeRozbalena ? "−" : "+";
-
     public string PopisPrepinace => JeRozbalena
         ? "Sbalit milníky"
         : $"Rozbalit milníky ({Zakazka.Milniky.Count})";

@@ -22,6 +22,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
     private string _konecPrace;
     private bool _zohlednitSvatky;
     private bool _automatickeRazeni;
+    private bool _srafovatNepracovniDny;
 
     public NastaveniViewModel(PracovniNastaveni nastaveni)
     {
@@ -36,6 +37,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
         _konecPrace = nastaveni.KonecPrace.ToString("HH:mm", CultureInfo.InvariantCulture);
         _zohlednitSvatky = nastaveni.ZohlednitSvatky;
         _automatickeRazeni = nastaveni.AutomatickeRazeni;
+        _srafovatNepracovniDny = nastaveni.SrafovatNepracovniDny;
     }
 
     public bool Pondeli { get => _pondeli; set => NastavDen(ref _pondeli, value); }
@@ -91,6 +93,12 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
         set => SetProperty(ref _automatickeRazeni, value);
     }
 
+    public bool SrafovatNepracovniDny
+    {
+        get => _srafovatNepracovniDny;
+        set => SetProperty(ref _srafovatNepracovniDny, value);
+    }
+
     public string HodinDenneText
     {
         get
@@ -134,6 +142,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
             KonecPrace = konec,
             ZohlednitSvatky = _zohlednitSvatky,
             AutomatickeRazeni = _automatickeRazeni,
+            SrafovatNepracovniDny = _srafovatNepracovniDny,
         };
     }
 
