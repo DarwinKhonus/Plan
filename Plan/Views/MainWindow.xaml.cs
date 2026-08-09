@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
 using Plan.Controls;
 using Plan.Services;
@@ -20,6 +22,7 @@ public partial class MainWindow : Window
         _viewModel = viewModel;
         DataContext = viewModel;
 
+        viewModel.PozadavekNaInfo += (_, _) => ZobrazitInfo();
         viewModel.PozadavekNaPridani += (_, _) => PridatZakazku();
         viewModel.PozadavekNaUpravu += (_, _) => UpravitZakazku();
         viewModel.PozadavekNaSmazani += (_, _) => SmazatZakazku();
@@ -41,6 +44,44 @@ public partial class MainWindow : Window
 
         // Kontrola aktualizací se pouští až po vykreslení okna a nikdy se na ni nečeká.
         _ = _viewModel.ZkontrolujAktualizaceAsync();
+    }
+
+    private void ZobrazitInfo()
+    {
+        if (_viewModel.VybranaZakazka is not { } vybrana)
+        {
+            return;
+        }
+
+        var info = new InfoViewModel(vybrana, _viewModel.Zakazky, _viewModel.Kalendar);
+        new InfoDialog(info) { Owner = this }.ShowDialog();
+    }
+
+    /// <summary>
+    /// WPF při pravém kliknutí řádek sám nevybere, takže by se kontextová nabídka
+    /// vztahovala k dříve vybrané zakázce. Výběr proto přeneseme ručně.
+    /// </summary>
+    private void Tabulka_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (NajdiPredka<DataGridRow>(e.OriginalSource as DependencyObject) is { } radek)
+        {
+            radek.IsSelected = true;
+        }
+    }
+
+    private static T? NajdiPredka<T>(DependencyObject? prvek)
+        where T : DependencyObject
+    {
+        while (prvek is not null and not T)
+        {
+            // VisualTreeHelper neprojde přes obsah šablon typu ContentPresenter u ne-vizuálů,
+            // proto fallback na logického rodiče.
+            prvek = prvek is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(prvek)
+                : LogicalTreeHelper.GetParent(prvek);
+        }
+
+        return prvek as T;
     }
 
     private async void PridatZakazku()

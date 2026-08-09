@@ -580,6 +580,25 @@ public class CasovaOsa : FrameworkElement
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Pravé tlačítko jen přenese výběr na zakázku pod kurzorem, aby se kontextová
+    /// nabídka otevřela nad tou správnou. Samotnou nabídku pak zobrazí WPF.
+    /// </summary>
+    protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseRightButtonDown(e);
+
+        // Během tažení se výběr nepřepíná — pravý klik uprostřed tažení by jinak
+        // přehodil výběr na jinou zakázku, než se kterou uživatel právě hýbe.
+        if (_tazeni is not null)
+        {
+            return;
+        }
+
+        var (zakazka, _) = ZjistiZonu(e.GetPosition(this));
+        VybranaZakazka = zakazka;
+    }
+
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);

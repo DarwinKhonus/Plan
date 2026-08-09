@@ -18,9 +18,15 @@ public class ZakazkaViewModel : ObservableObject
         _nazev = zakazka.Nazev;
         _datumOd = zakazka.DatumOd;
         _datumDo = zakazka.DatumDo;
+        VytvorenoUtc = zakazka.VytvorenoUtc;
+        UpravenoUtc = zakazka.UpravenoUtc;
     }
 
     public int Id { get; }
+
+    public DateTime VytvorenoUtc { get; }
+
+    public DateTime UpravenoUtc { get; }
 
     public string Nazev
     {

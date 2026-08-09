@@ -39,6 +39,9 @@ public class MainViewModel : ObservableObject
         _nastaveniRepository = nastaveniRepository;
         _updateChecker = updateChecker;
 
+        InfoCommand = new RelayCommand(
+            () => PozadavekNaInfo?.Invoke(this, EventArgs.Empty),
+            () => VybranaZakazka is not null);
         PridatCommand = new RelayCommand(() => PozadavekNaPridani?.Invoke(this, EventArgs.Empty));
         UpravitCommand = new RelayCommand(
             () => PozadavekNaUpravu?.Invoke(this, EventArgs.Empty),
@@ -64,6 +67,8 @@ public class MainViewModel : ObservableObject
     /// Události, na které reaguje okno otevřením dialogu. ViewModel tak nemusí znát
     /// žádný WPF typ a zůstává testovatelný.
     /// </summary>
+    public event EventHandler? PozadavekNaInfo;
+
     public event EventHandler? PozadavekNaPridani;
 
     public event EventHandler? PozadavekNaUpravu;
@@ -75,6 +80,8 @@ public class MainViewModel : ObservableObject
     public event EventHandler? PozadavekNaSkokNaDnesek;
 
     public ObservableCollection<ZakazkaViewModel> Zakazky { get; } = [];
+
+    public ICommand InfoCommand { get; }
 
     public ICommand PridatCommand { get; }
 

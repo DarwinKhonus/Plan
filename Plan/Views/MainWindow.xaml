@@ -24,12 +24,32 @@
             <Setter Property="Margin" Value="0,0,6,0" />
             <Setter Property="MinWidth" Value="80" />
         </Style>
+
+        <!--
+            Sdílená kontextová nabídka pro časovou osu i tabulku, ať se obojí chová stejně.
+            Položky nad zakázkou se samy zakážou, když není nic vybrané (CanExecute příkazů).
+
+            Nabídka nežije ve vizuálním stromu okna, takže by se DataContext dědil
+            z prvku, nad kterým se otevřela — u řádku tabulky by to byla ZakazkaViewModel
+            a vazby na příkazy by tiše selhaly. Proto se bere z Tagu cílového prvku,
+            kam se MainViewModel nastavuje níže.
+        -->
+        <ContextMenu x:Key="NabidkaZakazky"
+                     DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
+            <MenuItem Header="Info" Command="{Binding InfoCommand}" FontWeight="SemiBold" />
+            <Separator />
+            <MenuItem Header="Upravit" Command="{Binding UpravitCommand}" InputGestureText="F2" />
+            <MenuItem Header="Smazat" Command="{Binding SmazatCommand}" InputGestureText="Del" />
+            <Separator />
+            <MenuItem Header="Přidat zakázku" Command="{Binding PridatCommand}" InputGestureText="Ctrl+N" />
+        </ContextMenu>
     </Window.Resources>
 
     <Window.InputBindings>
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding PridatCommand}" />
         <KeyBinding Key="Delete" Command="{Binding SmazatCommand}" />
         <KeyBinding Key="F2" Command="{Binding UpravitCommand}" />
+        <KeyBinding Key="F1" Command="{Binding InfoCommand}" />
     </Window.InputBindings>
 
     <DockPanel>
@@ -37,9 +57,10 @@
         <!-- Panel nástrojů -->
         <Border DockPanel.Dock="Top" Background="White" BorderBrush="#E6E9ED" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Margin="12,10">
-                <Button Content="Přidat" Command="{Binding PridatCommand}" Style="{StaticResource NastrojovyButton}" />
-                <Button Content="Upravit" Command="{Binding UpravitCommand}" Style="{StaticResource NastrojovyButton}" />
-                <Button Content="Smazat" Command="{Binding SmazatCommand}" Style="{StaticResource NastrojovyButton}" />
+                <Button Content="Přidat" Command="{Binding PridatCommand}" Style="{StaticResource NastrojovyButton}" ToolTip="Ctrl+N" />
+                <Button Content="Upravit" Command="{Binding UpravitCommand}" Style="{StaticResource NastrojovyButton}" ToolTip="F2" />
+                <Button Content="Smazat" Command="{Binding SmazatCommand}" Style="{StaticResource NastrojovyButton}" ToolTip="Delete" />
+                <Button Content="Info" Command="{Binding InfoCommand}" Style="{StaticResource NastrojovyButton}" ToolTip="F1" />
 
                 <Separator Margin="8,2" />
 
@@ -86,6 +107,8 @@
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Auto">
                         <controls:CasovaOsa x:Name="Osa"
+                                            ContextMenu="{StaticResource NabidkaZakazky}"
+                                            Tag="{Binding}"
                                             Zakazky="{Binding Zakazky}"
                                             Kalendar="{Binding Kalendar}"
                                             VybranaZakazka="{Binding VybranaZakazka, Mode=TwoWay}"
@@ -126,10 +149,16 @@
                           HorizontalGridLinesBrush="#EDEFF2"
                           BorderThickness="0"
                           RowHeight="30"
-                          MouseDoubleClick="Tabulka_MouseDoubleClick">
+                          MouseDoubleClick="Tabulka_MouseDoubleClick"
+                          PreviewMouseRightButtonDown="Tabulka_PreviewMouseRightButtonDown">
 
                     <DataGrid.RowStyle>
                         <Style TargetType="DataGridRow">
+                            <!-- Nabídka na řádku, ne na celém gridu: pravý klik tak rovnou
+                                 přenese výběr na zakázku pod kurzorem. -->
+                            <Setter Property="ContextMenu" Value="{StaticResource NabidkaZakazky}" />
+                            <Setter Property="Tag"
+                                    Value="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding MaKolizi}" Value="True">
                                     <Setter Property="Background" Value="#FDECEA" />
