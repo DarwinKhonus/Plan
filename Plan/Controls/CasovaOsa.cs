@@ -44,7 +44,11 @@ public class CasovaOsa : FrameworkElement
     private static readonly Pen PeroPruhKolize = VytvorPero("#922B21", 1);
     private static readonly Pen PeroVyber = VytvorPero("#1B3E5E", 2.5);
 
-    // Podložka pod názvem zakázky, aby text držel kontrast nad světlými mezerami.
+    // Název zakázky mimo pruh: tmavý text na podkladu osy.
+    private static readonly Brush StetecPopisku = Vytvor("#2C3542");
+    private static readonly Brush StetecPopiskuKolize = Vytvor("#922B21");
+
+    // Podložka pro krajní případ, kdy se název musí vejít dovnitř pruhu.
     private static readonly Brush StetecPodlozkaPopisku = Vytvor("#73101A24");
     // Poloprůhledný, aby přes zvýrazněný řádek zůstalo vidět podbarvení víkendů a svátků.
     private static readonly Brush StetecVybranyRadek = Vytvor("#2E3B82C4");
@@ -552,7 +556,6 @@ public class CasovaOsa : FrameworkElement
 
             // Název nese jen první úsek; opakovat ho na každé části by osu zaplevelilo.
             Rect? obdelnikProPopisek = null;
-            List<Rozsah>? pracovniProPopisek = null;
 
             foreach (var usek in zakazka.Useky.OrderBy(u => u.DatumOd))
             {
@@ -571,16 +574,16 @@ public class CasovaOsa : FrameworkElement
                 dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
 
                 obdelnikProPopisek ??= obdelnik;
-                pracovniProPopisek ??= pracovniUseky;
+            }
+
+            // Název leží mimo pruh, takže si s milníky nelezou do cesty; milníky se proto
+            // kreslí až nad ním a nikdy je nic nepřekryje.
+            if (obdelnikProPopisek is { } kam)
+            {
+                VykresliPopisek(dc, zakazka, kam);
             }
 
             VykresliMilniky(dc, zakazka, radek);
-
-            // Název až nad milníky — dřív ho kosočtverec milníku překrýval.
-            if (obdelnikProPopisek is { } kam)
-            {
-                VykresliPopisek(dc, zakazka, kam, pracovniProPopisek!);
-            }
         }
     }
 
@@ -639,45 +642,61 @@ public class CasovaOsa : FrameworkElement
         dc.Pop();
     }
 
-    private void VykresliPopisek(
-        DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik, List<Rozsah> pracovniUseky)
+    /// <summary>
+    /// Vykreslí název zakázky mimo pruh — přednostně těsně před jeho začátkem.
+    /// </summary>
+    /// <remarks>
+    /// V pruhu název nešel umístit rozumně: bílý text zanikal nad nevyplněnými víkendy
+    /// a s milníkem si vzájemně lezly do cesty, ať se kreslilo v jakémkoli pořadí.
+    /// Mimo pruh je tmavý text na světlém podkladu a milníky zůstávají volné.
+    /// </remarks>
+    private void VykresliPopisek(DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik)
     {
+        const double Mezera = 6;
+
         var popisek = zakazka.MaKolizi ? $"⚠ {zakazka.Nazev}" : zakazka.Nazev;
-        var text = VytvorText(popisek, 11, StetecTextPruhu, FontWeights.Normal);
+        var stetec = zakazka.MaKolizi ? StetecPopiskuKolize : StetecPopisku;
+        var text = VytvorText(popisek, 11, stetec, FontWeights.Normal);
 
-        // Text začíná na prvním pracovním dni, aby neležel v nevyplněné mezeře,
-        // kde by byl na světlém podkladu nečitelný.
-        var zacatekTextu = pracovniUseky.Count > 0
-            ? Math.Max(XoveProDen(pracovniUseky[0].Od), obdelnik.X)
-            : obdelnik.X;
+        var levyOkrajOkna = VodorovnyPosun;
+        var pravyOkrajOkna = SirkaViditelnehoOkna > 0
+            ? VodorovnyPosun + SirkaViditelnehoOkna
+            : Math.Max(1, PocetDnu) * SirkaDne;
 
-        var dostupnaSirka = obdelnik.Right - zacatekTextu - 10;
-        if (dostupnaSirka <= 12)
+        var y = obdelnik.Y + ((obdelnik.Height - text.Height) / 2);
+
+        // Před pruhem, zprava zarovnané na jeho začátek.
+        var pred = obdelnik.X - Mezera - text.Width;
+        if (pred >= levyOkrajOkna)
         {
+            dc.DrawText(text, new Point(pred, y));
             return;
         }
 
-        text.MaxTextWidth = dostupnaSirka;
-        text.MaxLineCount = 1;
-        text.Trimming = TextTrimming.CharacterEllipsis;
+        // Nevejde se to vlevo (zakázka začíná u kraje osy nebo je odscrollovaná),
+        // takže název jde za pruh.
+        var za = obdelnik.Right + Mezera;
+        if (za + text.Width <= pravyOkrajOkna)
+        {
+            dc.DrawText(text, new Point(za, y));
+            return;
+        }
 
-        var pozice = new Point(zacatekTextu + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2));
+        // Pruh zabírá celé okno — pak zbývá jen dovnitř, s podložkou pro kontrast.
+        var uvnitr = new Point(Math.Max(obdelnik.X, levyOkrajOkna) + 5, y);
+        var svetlyText = VytvorText(popisek, 11, StetecTextPruhu, FontWeights.Normal);
+        svetlyText.MaxTextWidth = Math.Max(obdelnik.Width - 10, 1);
+        svetlyText.MaxLineCount = 1;
+        svetlyText.Trimming = TextTrimming.CharacterEllipsis;
 
-        // Tmavá podložka pod textem. Obtah písma se u velikosti 11 px slévá a názvy jsou
-        // pak čitelné hůř; podložka drží kontrast a litery zůstanou ostré — a to i nad
-        // nevyplněnými víkendy a nad kosočtvercem milníku.
         var podlozka = new Rect(
-            pozice.X - 3,
-            pozice.Y - 1,
-            Math.Min(text.Width, text.MaxTextWidth) + 6,
-            text.Height + 2);
+            uvnitr.X - 3,
+            uvnitr.Y - 1,
+            Math.Min(svetlyText.Width, svetlyText.MaxTextWidth) + 6,
+            svetlyText.Height + 2);
 
-        var tvarPruhu = new RectangleGeometry(obdelnik, 3, 3);
-        tvarPruhu.Freeze();
-        dc.PushClip(tvarPruhu);
         dc.DrawRoundedRectangle(StetecPodlozkaPopisku, null, podlozka, 2, 2);
-        dc.DrawText(text, pozice);
-        dc.Pop();
+        dc.DrawText(svetlyText, uvnitr);
     }
 
     /// <summary>

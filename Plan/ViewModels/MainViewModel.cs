@@ -235,11 +235,23 @@ public class MainViewModel : ObservableObject
             if (SetProperty(ref _aktualizace, value))
             {
                 OnPropertyChanged(nameof(LzeStahnoutAktualizaci));
+                ObnovDostupnostPrikazu();
             }
         }
     }
 
     public bool LzeStahnoutAktualizaci => _aktualizace?.LzeStahnout == true && !_stahujeSe;
+
+    /// <summary>
+    /// Přinutí WPF znovu se zeptat příkazů, jestli jsou dostupné.
+    /// </summary>
+    /// <remarks>
+    /// RelayCommand hlásí změnu dostupnosti přes CommandManager, který se ptá jen při
+    /// vstupu uživatele nebo změně fokusu. Když se stav změní na pozadí — doběhlá kontrola
+    /// aktualizací, znovunačtení dat — zůstalo by tlačítko šedé, dokud uživatel někam
+    /// neklikne. Proto se dotaz vyvolá ručně.
+    /// </remarks>
+    private static void ObnovDostupnostPrikazu() => CommandManager.InvalidateRequerySuggested();
 
     public bool StahujeSe
     {
@@ -249,6 +261,7 @@ public class MainViewModel : ObservableObject
             if (SetProperty(ref _stahujeSe, value))
             {
                 OnPropertyChanged(nameof(LzeStahnoutAktualizaci));
+                ObnovDostupnostPrikazu();
             }
         }
     }
@@ -403,6 +416,10 @@ public class MainViewModel : ObservableObject
         VybranaZakazka = vybraneId is null ? null : Zakazky.FirstOrDefault(z => z.Id == vybraneId);
 
         PrepocitejVse();
+
+        // Načtení běží asynchronně, takže se dostupnost tlačítek nad zakázkou
+        // sama neobnoví — viz ObnovDostupnostPrikazu.
+        ObnovDostupnostPrikazu();
     }
 
     public async Task PridejAsync(ZakazkaEditViewModel editace)
