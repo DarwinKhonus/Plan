@@ -20,29 +20,19 @@ public partial class App : Application
 
         var dbFactory = new PlanDbFactory();
 
-        try
-        {
-            dbFactory.MigrateDatabase();
-        }
-        catch (Exception ex)
-        {
-            // Bez databáze nemá aplikace co dělat — jediný případ, kdy start ukončíme.
-            MessageBox.Show(
-                $"Nepodařilo se otevřít databázi.\n\n{AppPaths.DatabaseFile}\n\n{ex.Message}",
-                "Plan",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-
-            Shutdown(1);
-            return;
-        }
+        // Okno se otevře i při potížích s databází. Dřív se aplikace ukončila, jenže tím
+        // se nikdy nespustila kontrola aktualizací — a u staré verze nad novou databází
+        // je nabídka novější verze jediná užitečná věc, kterou lze uživateli nabídnout.
+        var stav = dbFactory.Priprav(out var podrobnosti);
 
         var viewModel = new MainViewModel(
             new ZakazkyRepository(dbFactory),
             new NastaveniRepository(dbFactory),
             new UpdateChecker());
 
-        MainWindow = new MainWindow(viewModel);
+        viewModel.NastavStavDatabaze(stav, podrobnosti);
+
+        MainWindow = new MainWindow(viewModel, stav == StavDatabaze.Ok);
         MainWindow.Show();
     }
 

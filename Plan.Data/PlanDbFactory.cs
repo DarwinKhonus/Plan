@@ -38,4 +38,52 @@ public class PlanDbFactory
         using var db = Create();
         db.Database.Migrate();
     }
+
+    /// <summary>
+    /// Připraví databázi ke čtení a vrátí, v jakém je stavu.
+    /// </summary>
+    /// <remarks>
+    /// Databáze z novější verze aplikace se pozná podle migrací zapsaných v historii,
+    /// které tohle sestavení nezná. Migrovat ji nelze a čtení by skončilo nesrozumitelnou
+    /// SQL chybou o chybějícím sloupci, proto se to hlásí zvlášť.
+    /// </remarks>
+    public StavDatabaze Priprav(out string? popisChyby)
+    {
+        popisChyby = null;
+
+        try
+        {
+            using var db = Create();
+
+            var znameMigrace = db.Database.GetMigrations().ToHashSet(StringComparer.Ordinal);
+            var pouziteMigrace = db.Database.GetAppliedMigrations().ToList();
+            var neznameMigrace = pouziteMigrace.Where(m => !znameMigrace.Contains(m)).ToList();
+
+            if (neznameMigrace.Count > 0)
+            {
+                popisChyby = string.Join(", ", neznameMigrace);
+                return StavDatabaze.NovejsiNezAplikace;
+            }
+
+            db.Database.Migrate();
+            return StavDatabaze.Ok;
+        }
+        catch (Exception ex)
+        {
+            popisChyby = ex.Message;
+            return StavDatabaze.Nedostupna;
+        }
+    }
+}
+
+public enum StavDatabaze
+{
+    /// <summary>Databáze je připravená a odpovídá tomuto sestavení.</summary>
+    Ok,
+
+    /// <summary>Databáze byla vytvořena novější verzí aplikace a nejde s ní pracovat.</summary>
+    NovejsiNezAplikace,
+
+    /// <summary>Databázi se nepodařilo otevřít.</summary>
+    Nedostupna,
 }

@@ -74,6 +74,18 @@
             </StackPanel>
         </Border>
 
+        <!-- Potíž s databází. Nezavírá aplikaci, aby vedle zůstala vidět nabídka aktualizace. -->
+        <Border DockPanel.Dock="Top"
+                Background="#FDECEA"
+                BorderBrush="#F0BFB8"
+                BorderThickness="0,0,0,1"
+                Padding="12,8"
+                Visibility="{Binding MaChybuDatabaze, Converter={StaticResource BoolNaViditelnost}}">
+            <TextBlock Text="{Binding ChybaDatabaze}"
+                       TextWrapping="Wrap"
+                       Foreground="#922B21" />
+        </Border>
+
         <!-- Notifikace o nové verzi -->
         <Border DockPanel.Dock="Top"
                 Background="#FFF6E5"

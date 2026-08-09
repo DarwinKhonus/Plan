@@ -14,12 +14,14 @@ namespace Plan.Views;
 public partial class MainWindow : Window
 {
     private readonly MainViewModel _viewModel;
+    private readonly bool _databazeJePouzitelna;
 
-    public MainWindow(MainViewModel viewModel)
+    public MainWindow(MainViewModel viewModel, bool databazeJePouzitelna = true)
     {
         InitializeComponent();
 
         _viewModel = viewModel;
+        _databazeJePouzitelna = databazeJePouzitelna;
         DataContext = viewModel;
 
         viewModel.PozadavekNaInfo += (_, _) => ZobrazitInfo();
@@ -39,11 +41,27 @@ public partial class MainWindow : Window
 
     private async void NaNacteni(object sender, RoutedEventArgs e)
     {
-        await _viewModel.NactiAsync();
-        SkocitNaDnesek();
-
-        // Kontrola aktualizací se pouští až po vykreslení okna a nikdy se na ni nečeká.
+        // Kontrola aktualizací jde první a nezávisle na datech. Když je databáze
+        // z novější verze, načtení dat selže — a to je právě chvíle, kdy uživatel
+        // nabídku aktualizace potřebuje nejvíc.
         _ = _viewModel.ZkontrolujAktualizaceAsync();
+
+        // Nad nepoužitelnou databází se o načtení ani nepokoušíme — skončilo by to
+        // nesrozumitelnou SQL chybou. Srozumitelnou hlášku už drží ViewModel.
+        if (!_databazeJePouzitelna)
+        {
+            return;
+        }
+
+        try
+        {
+            await _viewModel.NactiAsync();
+            SkocitNaDnesek();
+        }
+        catch (Exception ex)
+        {
+            _viewModel.OhlasChybuNacteni(ex);
+        }
     }
 
     private void ZobrazitInfo()

@@ -26,6 +26,7 @@ public class MainViewModel : ObservableObject
     private double _sirkaDne = 26;
     private string? _informaceOAktualizaci;
     private string? _urlAktualizace;
+    private string? _chybaDatabaze;
 
     /// <summary>Tlumí přepočty během hromadných změn kolekce (načtení, přeřazení).</summary>
     private bool _hromadnaZmena;
@@ -146,6 +147,47 @@ public class MainViewModel : ObservableObject
     }
 
     public bool JeDostupnaAktualizace => !string.IsNullOrEmpty(_informaceOAktualizaci);
+
+    /// <summary>Popis potíže s databází, zobrazený jako pruh v okně. <c>null</c> = vše v pořádku.</summary>
+    public string? ChybaDatabaze
+    {
+        get => _chybaDatabaze;
+        private set
+        {
+            if (SetProperty(ref _chybaDatabaze, value))
+            {
+                OnPropertyChanged(nameof(MaChybuDatabaze));
+            }
+        }
+    }
+
+    public bool MaChybuDatabaze => !string.IsNullOrEmpty(_chybaDatabaze);
+
+    /// <summary>
+    /// Nastaví hlášku podle stavu databáze zjištěného při startu. Chyba se ukazuje
+    /// jako pruh v okně, ne jako dialog — vedle ní tak zůstane vidět nabídka aktualizace,
+    /// která je u staré verze nad novou databází přesně tím, co uživatel potřebuje.
+    /// </summary>
+    public void NastavStavDatabaze(StavDatabaze stav, string? podrobnosti)
+    {
+        ChybaDatabaze = stav switch
+        {
+            StavDatabaze.NovejsiNezAplikace =>
+                "Databáze pochází z novější verze aplikace, než je tato. "
+                + "Zakázky se proto nedají zobrazit — nainstalujte prosím aktuální verzi.",
+
+            StavDatabaze.Nedostupna =>
+                $"Databázi se nepodařilo otevřít: {podrobnosti}",
+
+            _ => null,
+        };
+    }
+
+    public void OhlasChybuNacteni(Exception vyjimka)
+    {
+        // Když už stav databáze hlásí konkrétnější příčinu, obecnou hlášku nepřepisujeme.
+        ChybaDatabaze ??= $"Data se nepodařilo načíst: {vyjimka.Message}";
+    }
 
     public string SouhrnStavu
     {
