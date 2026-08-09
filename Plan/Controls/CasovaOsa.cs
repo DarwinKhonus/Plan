@@ -44,8 +44,9 @@ public class CasovaOsa : FrameworkElement
     private static readonly Pen PeroPruhKolize = VytvorPero("#922B21", 1);
     private static readonly Pen PeroVyber = VytvorPero("#1B3E5E", 2.5);
 
-    // Šrafování nepracovních dnů v pruhu. Poloprůhledné, aby fungovalo nad modrou i červenou.
-    private static readonly Brush StetecSrafovani = VytvorSrafovani("#66FFFFFF", 1.4, 5);
+    // Šrafování nepracovních dnů v pruhu: silné bílé pruhy. Mírně průhledné, aby pod nimi
+    // barva pruhu ještě prosvítala a šrafování fungovalo nad modrou i červenou.
+    private static readonly Brush StetecSrafovani = VytvorSrafovani("#E6FFFFFF", 4, 10);
 
     // Název zakázky mimo pruh: tmavý text na podkladu osy.
     private static readonly Brush StetecPopisku = Vytvor("#2C3542");
