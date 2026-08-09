@@ -43,6 +43,9 @@ public class CasovaOsa : FrameworkElement
     private static readonly Pen PeroPruh = VytvorPero("#2C6494", 1);
     private static readonly Pen PeroPruhKolize = VytvorPero("#922B21", 1);
     private static readonly Pen PeroVyber = VytvorPero("#1B3E5E", 2.5);
+
+    // Podložka pod názvem zakázky, aby text držel kontrast nad světlými mezerami.
+    private static readonly Brush StetecPodlozkaPopisku = Vytvor("#73101A24");
     // Poloprůhledný, aby přes zvýrazněný řádek zůstalo vidět podbarvení víkendů a svátků.
     private static readonly Brush StetecVybranyRadek = Vytvor("#2E3B82C4");
 
@@ -548,7 +551,8 @@ public class CasovaOsa : FrameworkElement
                 : zakazka.MaKolizi ? PeroPruhKolize : PeroPruh;
 
             // Název nese jen první úsek; opakovat ho na každé části by osu zaplevelilo.
-            var prvni = true;
+            Rect? obdelnikProPopisek = null;
+            List<Rozsah>? pracovniProPopisek = null;
 
             foreach (var usek in zakazka.Useky.OrderBy(u => u.DatumOd))
             {
@@ -566,14 +570,17 @@ public class CasovaOsa : FrameworkElement
                 VykresliVyplnUseku(dc, obdelnik, vypln, pracovniUseky);
                 dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
 
-                if (prvni)
-                {
-                    VykresliPopisek(dc, zakazka, obdelnik, pracovniUseky);
-                    prvni = false;
-                }
+                obdelnikProPopisek ??= obdelnik;
+                pracovniProPopisek ??= pracovniUseky;
             }
 
             VykresliMilniky(dc, zakazka, radek);
+
+            // Název až nad milníky — dřív ho kosočtverec milníku překrýval.
+            if (obdelnikProPopisek is { } kam)
+            {
+                VykresliPopisek(dc, zakazka, kam, pracovniProPopisek!);
+            }
         }
     }
 
@@ -653,7 +660,24 @@ public class CasovaOsa : FrameworkElement
         text.MaxTextWidth = dostupnaSirka;
         text.MaxLineCount = 1;
         text.Trimming = TextTrimming.CharacterEllipsis;
-        dc.DrawText(text, new Point(zacatekTextu + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2)));
+
+        var pozice = new Point(zacatekTextu + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2));
+
+        // Tmavá podložka pod textem. Obtah písma se u velikosti 11 px slévá a názvy jsou
+        // pak čitelné hůř; podložka drží kontrast a litery zůstanou ostré — a to i nad
+        // nevyplněnými víkendy a nad kosočtvercem milníku.
+        var podlozka = new Rect(
+            pozice.X - 3,
+            pozice.Y - 1,
+            Math.Min(text.Width, text.MaxTextWidth) + 6,
+            text.Height + 2);
+
+        var tvarPruhu = new RectangleGeometry(obdelnik, 3, 3);
+        tvarPruhu.Freeze();
+        dc.PushClip(tvarPruhu);
+        dc.DrawRoundedRectangle(StetecPodlozkaPopisku, null, podlozka, 2, 2);
+        dc.DrawText(text, pozice);
+        dc.Pop();
     }
 
     /// <summary>
