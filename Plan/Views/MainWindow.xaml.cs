@@ -30,6 +30,7 @@ public partial class MainWindow : Window
         viewModel.PozadavekNaSmazani += (_, _) => SmazatZakazku();
         viewModel.PozadavekNaNastaveni += (_, _) => OtevritNastaveni();
         viewModel.PozadavekNaSkokNaDnesek += (_, _) => SkocitNaDnesek();
+        viewModel.PozadavekNaStazeniAktualizace += (_, _) => StahnoutAInstalovat();
 
         VerzeText.Text = string.Format(
             CultureInfo.CurrentCulture,
@@ -252,6 +253,56 @@ public partial class MainWindow : Window
         var cil = odsazeni - (OsaScroll.ViewportWidth / 2);
 
         OsaScroll.ScrollToHorizontalOffset(Math.Max(cil, 0));
+    }
+
+    /// <summary>
+    /// Stáhne instalátor, spustí ho a ukončí aplikaci. Instalátor běží v tichém režimu
+    /// a přepisuje soubor běžící aplikace, takže se musí uvolnit — proto to ukončení.
+    /// </summary>
+    private async void StahnoutAInstalovat()
+    {
+        var cesta = await _viewModel.StahniAktualizaciAsync();
+        if (cesta is null)
+        {
+            // Důvod už drží ViewModel a je vidět v pruhu, odkaz na stránku zůstává k dispozici.
+            return;
+        }
+
+        var odpoved = MessageBox.Show(
+            this,
+            "Aktualizace je připravená. Aplikace se teď zavře a spustí se instalace.\n\n"
+            + "Pokračovat?",
+            "Aktualizace aplikace Plan",
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Information,
+            MessageBoxResult.OK);
+
+        if (odpoved != MessageBoxResult.OK)
+        {
+            return;
+        }
+
+        try
+        {
+            // /SILENT ukáže jen průběh bez průvodce; instalace jde do stejné složky
+            // a zachová stávající zástupce.
+            Process.Start(new ProcessStartInfo(cesta)
+            {
+                Arguments = "/SILENT",
+                UseShellExecute = true,
+            });
+
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                this,
+                $"Instalaci se nepodařilo spustit:\n\n{ex.Message}\n\nSoubor je uložený zde:\n{cesta}",
+                "Plan",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void Hyperlink_RequestNavigate(object sender, RequestNavigateEventArgs e)

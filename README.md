@@ -20,7 +20,8 @@ kontakty ani obchodní historii.
 - **Pracovní doba** — nastavitelné pracovní dny, časový rozsah a zohlednění českých
   státních svátků; z toho se u každé zakázky dopočítá informativní odhad hodin
 - **Tabulkový výpis** — všechny zakázky seřazené podle termínu jako alternativa ke kalendáři
-- **Kontrola aktualizací** — při startu se na pozadí ověří, jestli nevyšla novější verze
+- **Aktualizace přímo z aplikace** — při startu se na pozadí ověří, jestli nevyšla novější
+  verze; tlačítkem se instalátor stáhne, ověří proti kontrolnímu součtu a spustí
 
 Data jsou v jediném souboru `%AppData%\Plan\plan.db` (SQLite). Aplikace nepotřebuje
 server ani připojení k internetu; kontrola aktualizací je jediné, co jde ven, a když
@@ -42,8 +43,13 @@ ani nezobrazí výzvu UAC.
 
 ### Aktualizace
 
-Stáhněte nový `setup.exe` a spusťte ho přes stávající instalaci — nic není potřeba
-odinstalovávat. Aplikace přistane ve stejné složce pod stejným názvem, takže **zástupce
+Když vyjde novější verze, aplikace to při startu pozná a nabídne pruh s tlačítkem
+**Stáhnout a nainstalovat**. Instalátor se stáhne, ověří proti kontrolnímu součtu
+z GitHub API a spustí se v tichém režimu; aplikace se přitom sama zavře. Ruční
+stahování z prohlížeče tedy potřeba není — odkaz na stránku zůstává jen jako záloha.
+
+Ruční cesta funguje pořád stejně: stáhněte nový `setup.exe` a spusťte ho přes stávající
+instalaci — nic není potřeba odinstalovávat. Aplikace přistane ve stejné složce pod stejným názvem, takže **zástupce
 na ploše zůstane na své pozici**. (Kdybyste místo instalátoru dávali přímo `.exe` s číslem
 verze na plochu, každá verze by se objevila jako nová ikona na první volné pozici —
 Windows si pozice pamatuje podle názvu souboru.)

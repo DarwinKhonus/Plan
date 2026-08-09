@@ -18,6 +18,7 @@ public class MainViewModel : ObservableObject
     private readonly ZakazkyRepository _zakazkyRepository;
     private readonly NastaveniRepository _nastaveniRepository;
     private readonly UpdateChecker _updateChecker;
+    private readonly UpdateDownloader _updateDownloader;
 
     private PracovniKalendar _kalendar = new(new PracovniNastaveni());
     private ZakazkaViewModel? _vybranaZakazka;
@@ -27,6 +28,10 @@ public class MainViewModel : ObservableObject
     private string? _informaceOAktualizaci;
     private string? _urlAktualizace;
     private string? _chybaDatabaze;
+    private DostupnaAktualizace? _aktualizace;
+    private bool _stahujeSe;
+    private double _pokrokStahovani;
+    private string? _stavStahovani;
 
     /// <summary>Tlumí přepočty během hromadných změn kolekce (načtení, přeřazení).</summary>
     private bool _hromadnaZmena;
@@ -34,8 +39,10 @@ public class MainViewModel : ObservableObject
     public MainViewModel(
         ZakazkyRepository zakazkyRepository,
         NastaveniRepository nastaveniRepository,
-        UpdateChecker updateChecker)
+        UpdateChecker updateChecker,
+        UpdateDownloader updateDownloader)
     {
+        _updateDownloader = updateDownloader;
         _zakazkyRepository = zakazkyRepository;
         _nastaveniRepository = nastaveniRepository;
         _updateChecker = updateChecker;
@@ -54,6 +61,9 @@ public class MainViewModel : ObservableObject
         PriblizitCommand = new RelayCommand(() => SirkaDne = Math.Min(SirkaDne + 6, 60));
         OddalitCommand = new RelayCommand(() => SirkaDne = Math.Max(SirkaDne - 6, 8));
         SkocitNaDnesekCommand = new RelayCommand(() => PozadavekNaSkokNaDnesek?.Invoke(this, EventArgs.Empty));
+        StahnoutAktualizaciCommand = new RelayCommand(
+            () => PozadavekNaStazeniAktualizace?.Invoke(this, EventArgs.Empty),
+            () => LzeStahnoutAktualizaci);
 
         Zakazky.CollectionChanged += (_, _) =>
         {
@@ -79,6 +89,8 @@ public class MainViewModel : ObservableObject
     public event EventHandler? PozadavekNaNastaveni;
 
     public event EventHandler? PozadavekNaSkokNaDnesek;
+
+    public event EventHandler? PozadavekNaStazeniAktualizace;
 
     public ObservableCollection<ZakazkaViewModel> Zakazky { get; } = [];
 
@@ -147,6 +159,89 @@ public class MainViewModel : ObservableObject
     }
 
     public bool JeDostupnaAktualizace => !string.IsNullOrEmpty(_informaceOAktualizaci);
+
+    /// <summary>Nalezená aktualizace, dokud se nezačne stahovat.</summary>
+    public DostupnaAktualizace? Aktualizace
+    {
+        get => _aktualizace;
+        private set
+        {
+            if (SetProperty(ref _aktualizace, value))
+            {
+                OnPropertyChanged(nameof(LzeStahnoutAktualizaci));
+            }
+        }
+    }
+
+    public bool LzeStahnoutAktualizaci => _aktualizace?.LzeStahnout == true && !_stahujeSe;
+
+    public bool StahujeSe
+    {
+        get => _stahujeSe;
+        private set
+        {
+            if (SetProperty(ref _stahujeSe, value))
+            {
+                OnPropertyChanged(nameof(LzeStahnoutAktualizaci));
+            }
+        }
+    }
+
+    /// <summary>Průběh stahování v procentech.</summary>
+    public double PokrokStahovani
+    {
+        get => _pokrokStahovani;
+        private set => SetProperty(ref _pokrokStahovani, value);
+    }
+
+    public string? StavStahovani
+    {
+        get => _stavStahovani;
+        private set => SetProperty(ref _stavStahovani, value);
+    }
+
+    public ICommand StahnoutAktualizaciCommand { get; }
+
+    /// <summary>
+    /// Stáhne a ověří instalátor. Vrátí cestu k souboru, který má okno spustit —
+    /// spuštění procesu a ukončení aplikace ViewModel záměrně nedělá.
+    /// </summary>
+    public async Task<string?> StahniAktualizaciAsync()
+    {
+        if (Aktualizace is not { LzeStahnout: true } aktualizace)
+        {
+            return null;
+        }
+
+        StahujeSe = true;
+        PokrokStahovani = 0;
+        StavStahovani = "Stahuji…";
+
+        try
+        {
+            var pokrok = new Progress<double>(podil => PokrokStahovani = podil * 100);
+            var (vysledek, cesta, chyba) = await _updateDownloader.StahniAsync(aktualizace, pokrok);
+
+            switch (vysledek)
+            {
+                case VysledekStazeni.Ok:
+                    StavStahovani = "Spouštím instalaci…";
+                    return cesta;
+
+                case VysledekStazeni.NesouhlasiKontrolniSoucet:
+                    StavStahovani = "Stažený soubor je poškozený, instalace se nespustí.";
+                    return null;
+
+                default:
+                    StavStahovani = $"Stažení se nepovedlo: {chyba}";
+                    return null;
+            }
+        }
+        finally
+        {
+            StahujeSe = false;
+        }
+    }
 
     /// <summary>Popis potíže s databází, zobrazený jako pruh v okně. <c>null</c> = vše v pořádku.</summary>
     public string? ChybaDatabaze
@@ -320,9 +415,13 @@ public class MainViewModel : ObservableObject
         var aktualizace = await _updateChecker.ZkontrolujAsync();
         if (aktualizace is null)
         {
+            // Aplikace je aktuální, takže dřív stažený instalátor už je jen zbytečných
+            // desítek megabajtů v TEMP.
+            UpdateDownloader.UklidStazene();
             return;
         }
 
+        Aktualizace = aktualizace;
         UrlAktualizace = aktualizace.StrankaReleaseUrl;
         InformaceOAktualizaci = $"K dispozici je novější verze {aktualizace.Verze}.";
     }

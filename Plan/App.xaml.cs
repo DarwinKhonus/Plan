@@ -28,7 +28,8 @@ public partial class App : Application
         var viewModel = new MainViewModel(
             new ZakazkyRepository(dbFactory),
             new NastaveniRepository(dbFactory),
-            new UpdateChecker());
+            new UpdateChecker(),
+            new UpdateDownloader());
 
         viewModel.NastavStavDatabaze(stav, podrobnosti);
 

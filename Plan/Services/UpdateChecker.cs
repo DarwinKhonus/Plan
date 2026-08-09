@@ -4,7 +4,22 @@ using System.Text.Json;
 
 namespace Plan.Services;
 
-public record DostupnaAktualizace(string Verze, string StrankaReleaseUrl);
+/// <param name="InstalatorUrl">
+/// Adresa instalátoru, nebo <c>null</c> když ho release neobsahuje — pak zbývá jen odkaz na stránku.
+/// </param>
+/// <param name="InstalatorSha256">
+/// Kontrolní součet z GitHub API. Stahovaný soubor se spouští, takže se před spuštěním ověřuje.
+/// </param>
+public record DostupnaAktualizace(
+    string Verze,
+    string StrankaReleaseUrl,
+    string? InstalatorNazev = null,
+    string? InstalatorUrl = null,
+    long InstalatorVelikost = 0,
+    string? InstalatorSha256 = null)
+{
+    public bool LzeStahnout => !string.IsNullOrEmpty(InstalatorUrl);
+}
 
 /// <summary>
 /// Zjišťuje, jestli je na GitHubu novější release než běžící sestavení.
@@ -78,15 +93,61 @@ public class UpdateChecker
                 ? urlElement.GetString()
                 : null;
 
+            var instalator = NajdiInstalator(korene);
+
             return new DostupnaAktualizace(
                 tag!.TrimStart('v', 'V'),
-                url ?? "https://github.com/DarwinKhonus/Plan/releases/latest");
+                url ?? "https://github.com/DarwinKhonus/Plan/releases/latest",
+                instalator.Nazev,
+                instalator.Url,
+                instalator.Velikost,
+                instalator.Sha256);
         }
         catch
         {
             // Offline, DNS, timeout, změněný tvar odpovědi — nic z toho nesmí bublat do UI.
             return null;
         }
+    }
+
+    /// <summary>
+    /// Najde v release assetech instalátor. Přenosnou variantu záměrně ignoruje —
+    /// tu nelze spustit jako aktualizaci existující instalace.
+    /// </summary>
+    private static (string? Nazev, string? Url, long Velikost, string? Sha256) NajdiInstalator(
+        JsonElement korene)
+    {
+        if (!korene.TryGetProperty("assets", out var assety) || assety.ValueKind != JsonValueKind.Array)
+        {
+            return (null, null, 0, null);
+        }
+
+        foreach (var asset in assety.EnumerateArray())
+        {
+            var nazev = asset.TryGetProperty("name", out var n) ? n.GetString() : null;
+            if (nazev is null || !nazev.EndsWith("-setup.exe", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var url = asset.TryGetProperty("browser_download_url", out var u) ? u.GetString() : null;
+            if (url is null)
+            {
+                continue;
+            }
+
+            var velikost = asset.TryGetProperty("size", out var s) && s.TryGetInt64(out var v) ? v : 0;
+
+            // API vrací digest ve tvaru "sha256:abc…", zajímá nás jen ta část za dvojtečkou.
+            var digest = asset.TryGetProperty("digest", out var d) ? d.GetString() : null;
+            var sha256 = digest?.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase) == true
+                ? digest["sha256:".Length..]
+                : null;
+
+            return (nazev, url, velikost, sha256);
+        }
+
+        return (null, null, 0, null);
     }
 
     /// <summary>

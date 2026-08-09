@@ -93,12 +93,54 @@
                 BorderThickness="0,0,0,1"
                 Padding="12,8"
                 Visibility="{Binding JeDostupnaAktualizace, Converter={StaticResource BoolNaViditelnost}}">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="{Binding InformaceOAktualizaci}" VerticalAlignment="Center" Foreground="#6B4E11" />
-                <TextBlock Margin="10,0,0,0" VerticalAlignment="Center">
-                    <Hyperlink NavigateUri="{Binding UrlAktualizace}" RequestNavigate="Hyperlink_RequestNavigate">
-                        Otevřít stránku ke stažení
-                    </Hyperlink>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="{Binding InformaceOAktualizaci}" VerticalAlignment="Center" Foreground="#6B4E11" />
+
+                    <Button Content="Stáhnout a nainstalovat"
+                            Command="{Binding StahnoutAktualizaciCommand}"
+                            Padding="10,4"
+                            Margin="12,0,0,0"
+                            Visibility="{Binding LzeStahnoutAktualizaci, Converter={StaticResource BoolNaViditelnost}}" />
+
+                    <!-- Záloha pro případ, že release instalátor neobsahuje nebo stahování selže. -->
+                    <TextBlock Margin="12,0,0,0" VerticalAlignment="Center">
+                        <Hyperlink NavigateUri="{Binding UrlAktualizace}" RequestNavigate="Hyperlink_RequestNavigate">
+                            Otevřít stránku ke stažení
+                        </Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,8,0,0"
+                            Visibility="{Binding StahujeSe, Converter={StaticResource BoolNaViditelnost}}">
+                    <!-- ProgressBar.Value se váže TwoWay by default, což na vlastnosti
+                         s privátním setterem skončí výjimkou. -->
+                    <ProgressBar Value="{Binding PokrokStahovani, Mode=OneWay}"
+                                 Maximum="100"
+                                 Width="260"
+                                 Height="6"
+                                 VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding PokrokStahovani, StringFormat={}{0:0} %}"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0"
+                               Foreground="#6B4E11" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding StavStahovani}"
+                           Foreground="#6B4E11"
+                           TextWrapping="Wrap"
+                           Margin="0,6,0,0">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding StavStahovani}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
                 </TextBlock>
             </StackPanel>
         </Border>
