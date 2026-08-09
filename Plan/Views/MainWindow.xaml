@@ -38,8 +38,21 @@
                      DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
             <MenuItem Header="Info" Command="{Binding InfoCommand}" FontWeight="SemiBold" />
             <Separator />
-            <MenuItem Header="Upravit" Command="{Binding UpravitCommand}" InputGestureText="F2" />
-            <MenuItem Header="Smazat" Command="{Binding SmazatCommand}" InputGestureText="Del" />
+            <MenuItem Header="Upravit zakázku" Command="{Binding UpravitCommand}" InputGestureText="F2" />
+            <MenuItem Header="Upravit milník…" Click="Tabulka_UpravitMilnik">
+                <MenuItem.Style>
+                    <Style TargetType="MenuItem">
+                        <!-- Má smysl jen na řádku milníku. -->
+                        <Setter Property="IsEnabled" Value="False" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding VybranyRadek.JeMilnik}" Value="True">
+                                <Setter Property="IsEnabled" Value="True" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </MenuItem.Style>
+            </MenuItem>
+            <MenuItem Header="Smazat zakázku" Command="{Binding SmazatCommand}" InputGestureText="Del" />
             <Separator />
             <MenuItem Header="Přidat zakázku" Command="{Binding PridatCommand}" InputGestureText="Ctrl+N" />
         </ContextMenu>
@@ -159,7 +172,9 @@
                 <Grid>
                     <ScrollViewer x:Name="OsaScroll"
                                   HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Auto">
+                                  VerticalScrollBarVisibility="Auto"
+                                  ScrollChanged="OsaScroll_ScrollChanged"
+                                  PreviewMouseWheel="OsaScroll_PreviewMouseWheel">
                         <controls:CasovaOsa x:Name="Osa"
                                             ContextMenuOpening="Osa_ContextMenuOpening"
                                             Zakazky="{Binding Zakazky}"
@@ -214,8 +229,8 @@
             </TabItem>
 
             <TabItem Header="Tabulka">
-                <DataGrid ItemsSource="{Binding Zakazky}"
-                          SelectedItem="{Binding VybranaZakazka, Mode=TwoWay}"
+                <DataGrid ItemsSource="{Binding RadkyTabulky}"
+                          SelectedItem="{Binding VybranyRadek, Mode=TwoWay}"
                           AutoGenerateColumns="False"
                           IsReadOnly="True"
                           CanUserAddRows="False"
@@ -244,18 +259,57 @@
                     </DataGrid.RowStyle>
 
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Název" Binding="{Binding Nazev}" Width="*" />
-                        <DataGridTextColumn Header="Termín od" Binding="{Binding DatumOd, StringFormat=d}" Width="110" />
-                        <DataGridTextColumn Header="Termín do" Binding="{Binding DatumDo, StringFormat=d}" Width="110" />
-                        <DataGridTextColumn Header="Dnů" Binding="{Binding PocetDnu}" Width="60" />
-                        <DataGridTextColumn Header="Úseků" Binding="{Binding PocetUseku}" Width="60" />
-                        <DataGridTextColumn Header="Pracovních dnů" Binding="{Binding PocetPracovnichDnu}" Width="110" />
-                        <DataGridTextColumn Header="Odhad hodin" Binding="{Binding OdhadHodin, StringFormat={}{0:0.#} h}" Width="100" />
+                        <!-- Název: u milníku odsazený a se spojnicí, aby tabulka čitelně
+                             naznačila strom. -->
+                        <DataGridTemplateColumn Header="Název" Width="*">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Style.Triggers>
+                                                    <!-- Odsazení milníku pod jeho zakázku. -->
+                                                    <DataTrigger Binding="{Binding JeMilnik}" Value="True">
+                                                        <Setter Property="Margin" Value="18,0,0,0" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+
+                                        <TextBlock Text="{Binding Spojnice}"
+                                                   Foreground="#A9B2BE"
+                                                   FontFamily="Consolas" />
+                                        <TextBlock Text="{Binding Nazev}" Margin="4,0,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding JeMilnik}" Value="True">
+                                                            <Setter Property="Foreground" Value="#8A6100" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn Header="Termín od" Binding="{Binding TerminOd}" Width="110" />
+                        <DataGridTextColumn Header="Termín do" Binding="{Binding TerminDo}" Width="110" />
+                        <DataGridTextColumn Header="Dnů" Binding="{Binding Dnu}" Width="60" />
+                        <DataGridTextColumn Header="Úseků" Binding="{Binding Useku}" Width="60" />
+                        <DataGridTextColumn Header="Pracovních dnů" Binding="{Binding PracovnichDnu}" Width="110" />
+                        <DataGridTextColumn Header="Odhad hodin" Binding="{Binding Hodiny}" Width="100" />
 
                         <DataGridTemplateColumn Header="Stav" Width="100">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <Border CornerRadius="9" Padding="8,2" HorizontalAlignment="Left" VerticalAlignment="Center">
+                                    <Border CornerRadius="9"
+                                            Padding="8,2"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding ZobrazitStav, Converter={StaticResource BoolNaViditelnost}}">
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background" Value="#E3F3E8" />

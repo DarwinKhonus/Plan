@@ -15,6 +15,11 @@ public class MainViewModel : ObservableObject
 
     private const int MinimalniRozsahDnu = 60;
 
+    /// <summary>Mez přiblížení v pixelech na den. Platí pro tlačítka i pro Ctrl+kolečko.</summary>
+    public const double MinimalniSirkaDne = 6;
+
+    public const double MaximalniSirkaDne = 80;
+
     private readonly ZakazkyRepository _zakazkyRepository;
     private readonly NastaveniRepository _nastaveniRepository;
     private readonly UpdateChecker _updateChecker;
@@ -25,6 +30,8 @@ public class MainViewModel : ObservableObject
     private DateOnly _prvniDen = DateOnly.FromDateTime(DateTime.Today);
     private int _pocetDnu = MinimalniRozsahDnu;
     private double _sirkaDne = 26;
+    private double _sirkaViditelneCasti;
+    private RadekTabulky? _vybranyRadek;
     private string? _informaceOAktualizaci;
     private string? _urlAktualizace;
     private string? _chybaDatabaze;
@@ -58,8 +65,8 @@ public class MainViewModel : ObservableObject
             () => PozadavekNaSmazani?.Invoke(this, EventArgs.Empty),
             () => VybranaZakazka is not null);
         NastaveniCommand = new RelayCommand(() => PozadavekNaNastaveni?.Invoke(this, EventArgs.Empty));
-        PriblizitCommand = new RelayCommand(() => SirkaDne = Math.Min(SirkaDne + 6, 60));
-        OddalitCommand = new RelayCommand(() => SirkaDne = Math.Max(SirkaDne - 6, 8));
+        PriblizitCommand = new RelayCommand(() => SirkaDne = Math.Min(SirkaDne + 6, MaximalniSirkaDne));
+        OddalitCommand = new RelayCommand(() => SirkaDne = Math.Max(SirkaDne - 6, MinimalniSirkaDne));
         SkocitNaDnesekCommand = new RelayCommand(() => PozadavekNaSkokNaDnesek?.Invoke(this, EventArgs.Empty));
         StahnoutAktualizaciCommand = new RelayCommand(
             () => PozadavekNaStazeniAktualizace?.Invoke(this, EventArgs.Empty),
@@ -94,6 +101,28 @@ public class MainViewModel : ObservableObject
 
     public ObservableCollection<ZakazkaViewModel> Zakazky { get; } = [];
 
+    /// <summary>
+    /// Plochá podoba zakázek a jejich milníků pro tabulku. Milník je vždy hned pod svou
+    /// zakázkou, takže tabulka čte jako strom, ale sloupce zůstanou zarovnané.
+    /// </summary>
+    public ObservableCollection<RadekTabulky> RadkyTabulky { get; } = [];
+
+    /// <summary>
+    /// Vybraný řádek tabulky. Výběr milníku vybere i jeho zakázku, aby na ni fungovaly
+    /// příkazy z panelu i z kontextové nabídky.
+    /// </summary>
+    public RadekTabulky? VybranyRadek
+    {
+        get => _vybranyRadek;
+        set
+        {
+            if (SetProperty(ref _vybranyRadek, value) && value is not null)
+            {
+                VybranaZakazka = value.Zakazka;
+            }
+        }
+    }
+
     public ICommand InfoCommand { get; }
 
     public ICommand PridatCommand { get; }
@@ -119,7 +148,21 @@ public class MainViewModel : ObservableObject
     public ZakazkaViewModel? VybranaZakazka
     {
         get => _vybranaZakazka;
-        set => SetProperty(ref _vybranaZakazka, value);
+        set
+        {
+            if (!SetProperty(ref _vybranaZakazka, value))
+            {
+                return;
+            }
+
+            // Výběr z časové osy musí posunout i výběr v tabulce — ale jen když
+            // vybraný řádek patří jiné zakázce, aby vybraný milník nepřeskočil
+            // na řádek své zakázky.
+            if (_vybranyRadek?.Zakazka != value)
+            {
+                VybranyRadek = RadkyTabulky.FirstOrDefault(r => !r.JeMilnik && r.Zakazka == value);
+            }
+        }
     }
 
     public DateOnly PrvniDen
@@ -137,7 +180,30 @@ public class MainViewModel : ObservableObject
     public double SirkaDne
     {
         get => _sirkaDne;
-        set => SetProperty(ref _sirkaDne, value);
+        set
+        {
+            if (SetProperty(ref _sirkaDne, value))
+            {
+                // Při jiném přiblížení se do okna vejde jiný počet dnů.
+                PrepocitejRozsahOsy();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Šířka viditelné části osy v pixelech. Okno ji hlásí při změně velikosti, aby osa
+    /// mohla vyplnit celou plochu bez ohledu na to, kam sahají zakázky.
+    /// </summary>
+    public double SirkaViditelneCasti
+    {
+        get => _sirkaViditelneCasti;
+        set
+        {
+            if (SetProperty(ref _sirkaViditelneCasti, value))
+            {
+                PrepocitejRozsahOsy();
+            }
+        }
     }
 
     public string? InformaceOAktualizaci
@@ -447,6 +513,40 @@ public class MainViewModel : ObservableObject
         PrepocitejKolize();
         PrepocitejHodiny();
         PrepocitejRozsahOsy();
+        PostavRadkyTabulky();
+    }
+
+    /// <summary>
+    /// Přeskládá řádky tabulky: zakázka a hned pod ní její milníky podle data.
+    /// </summary>
+    private void PostavRadkyTabulky()
+    {
+        var vybranaZakazkaId = _vybranyRadek?.Zakazka.Id;
+        var vybranyMilnikId = _vybranyRadek?.Milnik?.Id;
+
+        foreach (var radek in RadkyTabulky)
+        {
+            radek.Dispose();
+        }
+
+        RadkyTabulky.Clear();
+
+        foreach (var zakazka in Zakazky)
+        {
+            RadkyTabulky.Add(new RadekTabulky(zakazka));
+
+            var milniky = zakazka.Milniky.OrderBy(m => m.Datum).ToList();
+            for (var i = 0; i < milniky.Count; i++)
+            {
+                RadkyTabulky.Add(new RadekTabulky(zakazka, milniky[i], i == milniky.Count - 1));
+            }
+        }
+
+        // Přeskládání vytvoří nové instance řádků, takže výběr obnovíme podle Id.
+        _vybranyRadek = RadkyTabulky.FirstOrDefault(r =>
+            r.Zakazka.Id == vybranaZakazkaId && r.Milnik?.Id == vybranyMilnikId);
+
+        OnPropertyChanged(nameof(VybranyRadek));
     }
 
     private void PrepocitejKolize()
@@ -491,28 +591,16 @@ public class MainViewModel : ObservableObject
         }
 
         PrvniDen = zacatek.AddDays(-RezervaDnu);
-        PocetDnu = Math.Max(konec.DayNumber - PrvniDen.DayNumber + 1 + RezervaDnu, MinimalniRozsahDnu);
+
+        var dnyPodleZakazek = konec.DayNumber - PrvniDen.DayNumber + 1 + RezervaDnu;
+
+        // Osa má vyplnit celé okno i tehdy, když zakázky sahají jen na pár dnů —
+        // jinak by za posledním pruhem zůstávalo prázdné bílé místo.
+        var dnyPodleOkna = _sirkaViditelneCasti > 0 && _sirkaDne > 0
+            ? (int)Math.Ceiling(_sirkaViditelneCasti / _sirkaDne) + 1
+            : MinimalniRozsahDnu;
+
+        PocetDnu = Math.Max(dnyPodleZakazek, dnyPodleOkna);
     }
 
-    private void SeradZakazky()
-    {
-        var serazene = Zakazky.OrderBy(z => z.DatumOd).ThenBy(z => z.DatumDo).ToList();
-
-        _hromadnaZmena = true;
-        try
-        {
-            for (var cilovyIndex = 0; cilovyIndex < serazene.Count; cilovyIndex++)
-            {
-                var aktualniIndex = Zakazky.IndexOf(serazene[cilovyIndex]);
-                if (aktualniIndex != cilovyIndex)
-                {
-                    Zakazky.Move(aktualniIndex, cilovyIndex);
-                }
-            }
-        }
-        finally
-        {
-            _hromadnaZmena = false;
-        }
-    }
 }

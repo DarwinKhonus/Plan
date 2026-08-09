@@ -37,14 +37,15 @@
                     Visibility="Collapsed" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="Zrušit" MinWidth="88" Padding="10,6" IsCancel="True" Margin="0,0,8,0" />
                 <Button x:Name="UlozitButton"
                         Content="Uložit"
                         MinWidth="88"
                         Padding="10,6"
+                        Margin="0,0,8,0"
                         IsDefault="True"
                         IsEnabled="False"
                         Click="Ulozit_Click" />
+                <Button Content="Zrušit" MinWidth="88" Padding="10,6" IsCancel="True" />
             </StackPanel>
         </Grid>
     </StackPanel>

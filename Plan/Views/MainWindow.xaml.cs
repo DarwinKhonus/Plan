@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using Plan.Controls;
 using Plan.Services;
 using Plan.ViewModels;
@@ -230,26 +231,9 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Levý klik na milník otevře jeho úpravu.</summary>
-    private async void Osa_MilnikKliknut(object? sender, MilnikKliknutEventArgs e)
-    {
-        var dialog = MilnikDialog.Uprava(e.Milnik, e.Zakazka.Nazev);
-        dialog.Owner = this;
-
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        if (dialog.MaSmazat)
-        {
-            await _viewModel.SmazMilnikAsync(e.Milnik);
-        }
-        else
-        {
-            await _viewModel.UpravMilnikAsync(e.Milnik, dialog.Datum, dialog.Nazev);
-        }
-    }
+    /// <summary>Levý klik na milník v ose otevře jeho úpravu.</summary>
+    private async void Osa_MilnikKliknut(object? sender, MilnikKliknutEventArgs e) =>
+        await UpravMilnikAsync(e.Zakazka, e.Milnik);
 
     private async void Nabidka_OdebratMilnik(object sender, RoutedEventArgs e)
     {
@@ -259,12 +243,110 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Tabulka_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    /// <summary>
+    /// Dvojklik upraví to, na co uživatel klikl — na řádku milníku milník, jinak zakázku.
+    /// </summary>
+    private async void Tabulka_MouseDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (_viewModel.VybranaZakazka is not null)
+        // Dvojklik do záhlaví nebo mimo řádky nemá co upravovat.
+        if (NajdiPredka<DataGridRow>(e.OriginalSource as DependencyObject) is null)
+        {
+            return;
+        }
+
+        if (_viewModel.VybranyRadek is { Milnik: { } milnik } radek)
+        {
+            await UpravMilnikAsync(radek.Zakazka, milnik);
+        }
+        else if (_viewModel.VybranaZakazka is not null)
         {
             UpravitZakazku();
         }
+    }
+
+    private async void Tabulka_UpravitMilnik(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel.VybranyRadek is { Milnik: { } milnik } radek)
+        {
+            await UpravMilnikAsync(radek.Zakazka, milnik);
+        }
+    }
+
+    /// <summary>Otevře dialog úpravy milníku a uloží výsledek. Používá osa i tabulka.</summary>
+    private async Task UpravMilnikAsync(ZakazkaViewModel zakazka, MilnikViewModel milnik)
+    {
+        var dialog = MilnikDialog.Uprava(milnik, zakazka.Nazev);
+        dialog.Owner = this;
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (dialog.MaSmazat)
+        {
+            await _viewModel.SmazMilnikAsync(milnik);
+        }
+        else
+        {
+            await _viewModel.UpravMilnikAsync(milnik, dialog.Datum, dialog.Nazev);
+        }
+    }
+
+    /// <summary>
+    /// Hlásí ViewModelu šířku viditelné části, aby osa vyplnila okno. Bere se ze
+    /// ScrollChanged, ne ze SizeChanged — tam je ViewportWidth ještě před přeskládáním
+    /// a vracela by hodnotu o krok pozadu.
+    /// </summary>
+    private void OsaScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (e.ViewportWidthChange != 0 || _viewModel.SirkaViditelneCasti == 0)
+        {
+            _viewModel.SirkaViditelneCasti = e.ViewportWidth;
+        }
+
+        // Osa podle posunu drží název měsíce v dohledu.
+        Osa.VodorovnyPosun = e.HorizontalOffset;
+    }
+
+    /// <summary>
+    /// Kolečko posouvá osu vodorovně, s Ctrl přibližuje. Svislé posouvání kolečkem by
+    /// u osy nemělo smysl — řádků je málo, kdežto dnů hodně.
+    /// </summary>
+    private void OsaScroll_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            Priblizit(e.Delta, e.GetPosition(Osa).X);
+        }
+        else
+        {
+            OsaScroll.ScrollToHorizontalOffset(OsaScroll.HorizontalOffset - e.Delta);
+        }
+
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Přiblíží nebo oddálí osu a udrží přitom den pod kurzorem na stejném místě —
+    /// bez toho by zoom odskakoval a uživatel by ztrácel orientaci.
+    /// </summary>
+    private void Priblizit(int delta, double xVOse)
+    {
+        const double Krok = 1.2;
+
+        var denPodKurzorem = Osa.DenNaXove(xVOse);
+        var odsazeniVOkne = xVOse - OsaScroll.HorizontalOffset;
+
+        var nova = delta > 0 ? _viewModel.SirkaDne * Krok : _viewModel.SirkaDne / Krok;
+        _viewModel.SirkaDne = Math.Clamp(
+            nova, MainViewModel.MinimalniSirkaDne, MainViewModel.MaximalniSirkaDne);
+
+        // Přepočet šířky osy proběhne až po přeměření, takže korekci posunu odložíme.
+        Dispatcher.BeginInvoke(
+            () => OsaScroll.ScrollToHorizontalOffset(
+                Math.Max(Osa.XoveProDen(denPodKurzorem) - odsazeniVOkne, 0)),
+            DispatcherPriority.Loaded);
     }
 
     /// <summary>Odscrolluje časovou osu tak, aby byl dnešek zhruba uprostřed viditelné části.</summary>

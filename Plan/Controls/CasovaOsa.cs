@@ -46,9 +46,6 @@ public class CasovaOsa : FrameworkElement
     // Poloprůhledný, aby přes zvýrazněný řádek zůstalo vidět podbarvení víkendů a svátků.
     private static readonly Brush StetecVybranyRadek = Vytvor("#2E3B82C4");
 
-    // Ztmavení nepracovních dnů uvnitř pruhu. Termín je souvislý, ale z osy má být vidět,
-    // ve kterých dnech se na zakázce nepracuje.
-    private static readonly Brush StetecNepracovniVPruhu = Vytvor("#38000000");
     private static readonly Brush StetecMilnik = Vytvor("#F5B301");
     private static readonly Pen PeroMilnik = VytvorPero("#8A6100", 1.5);
 
@@ -127,6 +124,16 @@ public class CasovaOsa : FrameworkElement
             90,
             FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender));
 
+    /// <summary>
+    /// Vodorovný posun osy. Okno ho hlásí ze ScrollVieweru, aby název měsíce mohl zůstat
+    /// vidět i po odscrollování doprostřed měsíce.
+    /// </summary>
+    public static readonly DependencyProperty VodorovnyPosunProperty = DependencyProperty.Register(
+        nameof(VodorovnyPosun),
+        typeof(double),
+        typeof(CasovaOsa),
+        new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.AffectsRender));
+
     public static readonly DependencyProperty SirkaDneProperty = DependencyProperty.Register(
         nameof(SirkaDne),
         typeof(double),
@@ -189,6 +196,12 @@ public class CasovaOsa : FrameworkElement
     {
         get => (int)GetValue(PocetDnuProperty);
         set => SetValue(PocetDnuProperty, value);
+    }
+
+    public double VodorovnyPosun
+    {
+        get => (double)GetValue(VodorovnyPosunProperty);
+        set => SetValue(VodorovnyPosunProperty, value);
     }
 
     public double SirkaDne
@@ -402,11 +415,17 @@ public class CasovaOsa : FrameworkElement
             var nazevMesice = kultura.DateTimeFormat.MonthNames[den.Month - 1];
             var popisek = $"{kultura.TextInfo.ToTitleCase(nazevMesice)} {den.Year}";
             var text = VytvorText(popisek, 12, StetecText, FontWeights.SemiBold);
-            var sirkaUseku = (i - zacatekUseku) * SirkaDne;
 
-            if (text.Width + 8 <= sirkaUseku)
+            var levyOkraj = zacatekUseku * SirkaDne;
+            var pravyOkraj = i * SirkaDne;
+
+            // Popisek se drží u levého okraje měsíce, ale po odscrollování se posune
+            // k okraji okna — jinak by u širokého přiblížení zmizel z dohledu.
+            var x = Math.Max(levyOkraj, VodorovnyPosun) + 6;
+
+            if (x + text.Width + 2 <= pravyOkraj)
             {
-                dc.DrawText(text, new Point((zacatekUseku * SirkaDne) + 6, (vyskaMesicu - text.Height) / 2));
+                dc.DrawText(text, new Point(x, (vyskaMesicu - text.Height) / 2));
             }
 
             zacatekUseku = i;
@@ -491,12 +510,17 @@ public class CasovaOsa : FrameworkElement
                     continue;
                 }
 
-                dc.DrawRoundedRectangle(vypln, pero, obdelnik, 3, 3);
-                VykresliNepracovniDnyVUseku(dc, usek, obdelnik);
+                var pracovniUseky = PracovniPodUseky(usek);
+
+                // Výplň jen v pracovních dnech, obrys přes celý úsek. Nad víkendem
+                // a svátkem tak zůstane jen „skořápka“ a prosvítá jí podbarvení osy —
+                // z pruhu je pak vidět, že se v ten den nepracuje.
+                VykresliVyplnUseku(dc, obdelnik, vypln, pracovniUseky);
+                dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
 
                 if (prvni)
                 {
-                    VykresliPopisek(dc, zakazka, obdelnik);
+                    VykresliPopisek(dc, zakazka, obdelnik, pracovniUseky);
                     prvni = false;
                 }
             }
@@ -505,12 +529,74 @@ public class CasovaOsa : FrameworkElement
         }
     }
 
-    private void VykresliPopisek(DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik)
+    /// <summary>Souvislé úseky pracovních dnů v rámci jednoho úseku zakázky.</summary>
+    private List<Rozsah> PracovniPodUseky(UsekViewModel usek)
+    {
+        var kalendar = Kalendar;
+        var vysledek = new List<Rozsah>();
+
+        if (kalendar is null)
+        {
+            vysledek.Add(new Rozsah(usek.DatumOd, usek.DatumDo));
+            return vysledek;
+        }
+
+        DateOnly? zacatek = null;
+
+        for (var den = usek.DatumOd; den <= usek.DatumDo; den = den.AddDays(1))
+        {
+            if (kalendar.JePracovniDen(den))
+            {
+                zacatek ??= den;
+                continue;
+            }
+
+            if (zacatek is { } od)
+            {
+                vysledek.Add(new Rozsah(od, den.AddDays(-1)));
+                zacatek = null;
+            }
+        }
+
+        if (zacatek is { } posledni)
+        {
+            vysledek.Add(new Rozsah(posledni, usek.DatumDo));
+        }
+
+        return vysledek;
+    }
+
+    private void VykresliVyplnUseku(
+        DrawingContext dc, Rect obdelnik, Brush vypln, List<Rozsah> pracovniUseky)
+    {
+        // Ořez podle tvaru pruhu, aby výplň nepřečnívala přes zaoblené rohy.
+        var tvarPruhu = new RectangleGeometry(obdelnik, 3, 3);
+        tvarPruhu.Freeze();
+        dc.PushClip(tvarPruhu);
+
+        foreach (var rozsah in pracovniUseky)
+        {
+            var levy = XoveProDen(rozsah.Od);
+            var pravy = XoveProDen(rozsah.Do) + SirkaDne;
+            dc.DrawRectangle(vypln, null, new Rect(levy, obdelnik.Y, pravy - levy, obdelnik.Height));
+        }
+
+        dc.Pop();
+    }
+
+    private void VykresliPopisek(
+        DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik, List<Rozsah> pracovniUseky)
     {
         var popisek = zakazka.MaKolizi ? $"⚠ {zakazka.Nazev}" : zakazka.Nazev;
         var text = VytvorText(popisek, 11, StetecTextPruhu, FontWeights.Normal);
 
-        var dostupnaSirka = obdelnik.Width - 10;
+        // Text začíná na prvním pracovním dni, aby neležel v nevyplněné mezeře,
+        // kde by byl na světlém podkladu nečitelný.
+        var zacatekTextu = pracovniUseky.Count > 0
+            ? Math.Max(XoveProDen(pracovniUseky[0].Od), obdelnik.X)
+            : obdelnik.X;
+
+        var dostupnaSirka = obdelnik.Right - zacatekTextu - 10;
         if (dostupnaSirka <= 12)
         {
             return;
@@ -519,7 +605,7 @@ public class CasovaOsa : FrameworkElement
         text.MaxTextWidth = dostupnaSirka;
         text.MaxLineCount = 1;
         text.Trimming = TextTrimming.CharacterEllipsis;
-        dc.DrawText(text, new Point(obdelnik.X + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2)));
+        dc.DrawText(text, new Point(zacatekTextu + 5, obdelnik.Y + ((obdelnik.Height - text.Height) / 2)));
     }
 
     /// <summary>
@@ -546,40 +632,6 @@ public class CasovaOsa : FrameworkElement
                 dc.DrawLine(PeroSpojnice, new Point(konecPredchoziho, y), new Point(zacatekDalsiho, y));
             }
         }
-    }
-
-    /// <summary>
-    /// Ztmaví dny uvnitř úseku, ve kterých se nepracuje. Úsek zůstává souvislý, protože
-    /// souvislý je — jen z něj má být poznat, které dny se do odhadu hodin nepočítají.
-    /// </summary>
-    private void VykresliNepracovniDnyVUseku(DrawingContext dc, UsekViewModel usek, Rect obdelnik)
-    {
-        var kalendar = Kalendar;
-        if (kalendar is null)
-        {
-            return;
-        }
-
-        // Ořez podle tvaru pruhu, aby ztmavení nepřečnívalo přes zaoblené rohy.
-        var tvarPruhu = new RectangleGeometry(obdelnik, 3, 3);
-        tvarPruhu.Freeze();
-        dc.PushClip(tvarPruhu);
-
-        for (var den = usek.DatumOd; den <= usek.DatumDo; den = den.AddDays(1))
-        {
-            if (kalendar.JePracovniDen(den))
-            {
-                continue;
-            }
-
-            var x = (den.DayNumber - PrvniDen.DayNumber) * SirkaDne;
-            dc.DrawRectangle(
-                StetecNepracovniVPruhu,
-                null,
-                new Rect(x, obdelnik.Y, SirkaDne, obdelnik.Height));
-        }
-
-        dc.Pop();
     }
 
     private void VykresliMilniky(DrawingContext dc, ZakazkaViewModel zakazka, int radek)
@@ -831,8 +883,14 @@ public class CasovaOsa : FrameworkElement
     }
 
     /// <summary>Den, na který ukazuje daná vodorovná pozice.</summary>
-    private DateOnly DenNaPozici(Point pozice) =>
-        PrvniDen.AddDays(Math.Clamp((int)(pozice.X / SirkaDne), 0, Math.Max(PocetDnu - 1, 0)));
+    private DateOnly DenNaPozici(Point pozice) => DenNaXove(pozice.X);
+
+    /// <summary>Den na dané vodorovné souřadnici v ose. Používá zoom kolečkem myši.</summary>
+    public DateOnly DenNaXove(double x) =>
+        PrvniDen.AddDays(Math.Clamp((int)(x / SirkaDne), 0, Math.Max(PocetDnu - 1, 0)));
+
+    /// <summary>Vodorovná souřadnice levého okraje daného dne.</summary>
+    public double XoveProDen(DateOnly den) => (den.DayNumber - PrvniDen.DayNumber) * SirkaDne;
 
     private Zasah ZjistiZasah(Point pozice)
     {
