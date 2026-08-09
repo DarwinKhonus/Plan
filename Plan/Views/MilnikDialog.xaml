@@ -1,9 +1,10 @@
 <Window x:Class="Plan.Views.MilnikDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Nový milník"
+        x:Name="Okno"
+        Title="Milník"
         Icon="/Resources/plan.ico"
-        Width="380"
+        Width="400"
         SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
@@ -11,24 +12,40 @@
         FocusManager.FocusedElement="{Binding ElementName=NazevBox}">
 
     <StackPanel Margin="18">
-        <TextBlock x:Name="DatumText"
+        <TextBlock x:Name="ZakazkaText"
                    Foreground="#8A94A3"
-                   Margin="0,0,0,12" />
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,14" />
 
         <TextBlock Text="Název milníku" Foreground="#4A5563" Margin="0,0,0,4" />
         <TextBox x:Name="NazevBox"
                  Padding="6,5"
-                 TextChanged="NazevBox_TextChanged" />
+                 Margin="0,0,0,14"
+                 TextChanged="Vstup_Zmenen" />
 
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
-            <Button Content="Zrušit" MinWidth="88" Padding="10,6" IsCancel="True" Margin="0,0,8,0" />
-            <Button x:Name="UlozitButton"
-                    Content="Přidat"
-                    MinWidth="88"
+        <TextBlock Text="Datum" Foreground="#4A5563" Margin="0,0,0,4" />
+        <DatePicker x:Name="DatumPicker"
+                    SelectedDateChanged="Datum_Zmeneno" />
+
+        <Grid Margin="0,20,0,0">
+            <Button x:Name="SmazatButton"
+                    Content="Smazat milník"
+                    HorizontalAlignment="Left"
                     Padding="10,6"
-                    IsDefault="True"
-                    IsEnabled="False"
-                    Click="Ulozit_Click" />
-        </StackPanel>
+                    Foreground="#922B21"
+                    Click="Smazat_Click"
+                    Visibility="Collapsed" />
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Zrušit" MinWidth="88" Padding="10,6" IsCancel="True" Margin="0,0,8,0" />
+                <Button x:Name="UlozitButton"
+                        Content="Uložit"
+                        MinWidth="88"
+                        Padding="10,6"
+                        IsDefault="True"
+                        IsEnabled="False"
+                        Click="Ulozit_Click" />
+            </StackPanel>
+        </Grid>
     </StackPanel>
 </Window>

@@ -13,7 +13,8 @@ kontakty ani obchodní historii.
   protáhne jen začátek nebo konec; změna se ukládá hned
 - **Rozdělení na úseky** — zakázku lze pravým tlačítkem rozdělit na víc částí a mezi ně
   vložit pauzu; pauza se nepočítá do hodin a neblokuje jiné zakázky
-- **Milníky** — jednodenní značka v řádku zakázky (předání, dodání materiálu)
+- **Milníky** — jednodenní značka v řádku zakázky (předání, dodání materiálu); najetím myší
+  se zobrazí popis, kliknutím se milník upraví nebo smaže
 - **Info** — přehled o zakázce pod pravým tlačítkem nebo F1
 - **Detekce kolizí** — překrývající se zakázky se zvýrazní v ose i v tabulce a přepočítají
   se při každé změně; překryv pouze v nepracovní dny se za konflikt nepovažuje

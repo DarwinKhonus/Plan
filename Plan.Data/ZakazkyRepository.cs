@@ -159,6 +159,22 @@ public class ZakazkyRepository
         await db.SaveChangesAsync();
     }
 
+    public async Task UpravMilnikAsync(int milnikId, DateOnly datum, string nazev)
+    {
+        await using var db = _factory.Create();
+        var milnik = await db.Milniky.FindAsync(milnikId);
+        if (milnik is null)
+        {
+            return;
+        }
+
+        milnik.Datum = datum;
+        milnik.Nazev = nazev;
+
+        await OznacUpravuAsync(db, milnik.ZakazkaId);
+        await db.SaveChangesAsync();
+    }
+
     public async Task SmazMilnikAsync(int milnikId)
     {
         await using var db = _factory.Create();

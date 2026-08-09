@@ -221,11 +221,33 @@ public partial class MainWindow : Window
             return;
         }
 
-        var dialog = new MilnikDialog(Osa.DenPodKurzorem, zakazka.Nazev) { Owner = this };
+        var dialog = MilnikDialog.Novy(Osa.DenPodKurzorem, zakazka.Nazev);
+        dialog.Owner = this;
 
         if (dialog.ShowDialog() == true)
         {
             await _viewModel.PridejMilnikAsync(zakazka.Id, dialog.Datum, dialog.Nazev);
+        }
+    }
+
+    /// <summary>Levý klik na milník otevře jeho úpravu.</summary>
+    private async void Osa_MilnikKliknut(object? sender, MilnikKliknutEventArgs e)
+    {
+        var dialog = MilnikDialog.Uprava(e.Milnik, e.Zakazka.Nazev);
+        dialog.Owner = this;
+
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        if (dialog.MaSmazat)
+        {
+            await _viewModel.SmazMilnikAsync(e.Milnik);
+        }
+        else
+        {
+            await _viewModel.UpravMilnikAsync(e.Milnik, dialog.Datum, dialog.Nazev);
         }
     }
 

@@ -2,6 +2,8 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Plan.Data.Domain;
@@ -57,12 +59,35 @@ public class CasovaOsa : FrameworkElement
 
     private TazeniStav? _tazeni;
 
+    /// <summary>
+    /// Popisek milníku. Řídí se ručně, protože nastavovat vlastnost ToolTip až během
+    /// pohybu myši nefunguje — ToolTipService si obsah přečte při otevírání a změna
+    /// za běhu se neprojeví.
+    /// </summary>
+    private readonly ToolTip _popisekMilniku = new()
+    {
+        Placement = PlacementMode.MousePoint,
+        HorizontalOffset = 12,
+        VerticalOffset = 12,
+        StaysOpen = true,
+    };
+
+    private MilnikViewModel? _popsanyMilnik;
+
     static CasovaOsa()
     {
         FocusableProperty.OverrideMetadata(typeof(CasovaOsa), new FrameworkPropertyMetadata(true));
     }
 
+    public CasovaOsa()
+    {
+        _popisekMilniku.PlacementTarget = this;
+    }
+
     public event EventHandler<UsekZmenenEventArgs>? UsekZmenen;
+
+    /// <summary>Levý klik na milník — okno na to otevírá dialog úpravy.</summary>
+    public event EventHandler<MilnikKliknutEventArgs>? MilnikKliknut;
 
     #region Dependency properties
 
@@ -649,9 +674,36 @@ public class CasovaOsa : FrameworkElement
             _ => Cursors.Arrow,
         };
 
-        ToolTip = zasah.Milnik is { } milnik
-            ? $"{milnik.Nazev} — {milnik.Datum:d. M. yyyy}"
-            : null;
+        ZobrazPopisek(zasah.Milnik);
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        ZobrazPopisek(null);
+    }
+
+    /// <summary>
+    /// Otevře nebo zavře popisek milníku. Při přejezdu na jiný milník se popisek zavře
+    /// a znovu otevře, aby se přesunul k novému místu.
+    /// </summary>
+    private void ZobrazPopisek(MilnikViewModel? milnik)
+    {
+        if (ReferenceEquals(milnik, _popsanyMilnik))
+        {
+            return;
+        }
+
+        _popsanyMilnik = milnik;
+        _popisekMilniku.IsOpen = false;
+
+        if (milnik is null)
+        {
+            return;
+        }
+
+        _popisekMilniku.Content = $"{milnik.Nazev}\n{milnik.Datum:d. M. yyyy}";
+        _popisekMilniku.IsOpen = true;
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
@@ -661,8 +713,16 @@ public class CasovaOsa : FrameworkElement
         var zasah = ZjistiZasah(e.GetPosition(this));
         VybranaZakazka = zasah.Zakazka;
 
-        // Milníky se netáhnou — přesouvají se smazáním a novým přidáním.
-        if (zasah.Usek is null || zasah.Zona is Zona.Zadna or Zona.Milnik)
+        // Klik na milník otevírá jeho úpravu, netáhne se.
+        if (zasah is { Zona: Zona.Milnik, Zakazka: { } zakazka, Milnik: { } milnik })
+        {
+            ZobrazPopisek(null);
+            MilnikKliknut?.Invoke(this, new MilnikKliknutEventArgs(zakazka, milnik));
+            e.Handled = true;
+            return;
+        }
+
+        if (zasah.Usek is null || zasah.Zona is Zona.Zadna)
         {
             return;
         }

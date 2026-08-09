@@ -390,6 +390,12 @@ public class MainViewModel : ObservableObject
         await NactiAsync();
     }
 
+    public async Task UpravMilnikAsync(MilnikViewModel milnik, DateOnly datum, string nazev)
+    {
+        await _zakazkyRepository.UpravMilnikAsync(milnik.Id, datum, nazev.Trim());
+        await NactiAsync();
+    }
+
     public async Task SmazMilnikAsync(MilnikViewModel milnik)
     {
         await _zakazkyRepository.SmazMilnikAsync(milnik.Id);

@@ -168,7 +168,8 @@
                                             PrvniDen="{Binding PrvniDen}"
                                             PocetDnu="{Binding PocetDnu}"
                                             SirkaDne="{Binding SirkaDne}"
-                                            UsekZmenen="Osa_UsekZmenen">
+                                            UsekZmenen="Osa_UsekZmenen"
+                                            MilnikKliknut="Osa_MilnikKliknut">
                             <controls:CasovaOsa.ContextMenu>
                                 <!--
                                     Vlastní nabídka osy: položky pro úseky a milníky potřebují
