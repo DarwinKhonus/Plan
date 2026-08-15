@@ -22,7 +22,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
     private string _konecPrace;
     private bool _zohlednitSvatky;
     private bool _automatickeRazeni;
-    private bool _srafovatNepracovniDny;
+    private MoznostZobrazeni _zobrazeniNepracovnichDnu;
 
     public NastaveniViewModel(PracovniNastaveni nastaveni)
     {
@@ -37,8 +37,20 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
         _konecPrace = nastaveni.KonecPrace.ToString("HH:mm", CultureInfo.InvariantCulture);
         _zohlednitSvatky = nastaveni.ZohlednitSvatky;
         _automatickeRazeni = nastaveni.AutomatickeRazeni;
-        _srafovatNepracovniDny = nastaveni.SrafovatNepracovniDny;
+        _zobrazeniNepracovnichDnu =
+            MoznostiZobrazeni.First(m => m.Hodnota == nastaveni.ZobrazeniNepracovnichDnu);
     }
+
+    /// <summary>
+    /// Nabídka pro combo box v nastavení. Výčtový typ je kvalifikovaný, protože stejnojmenná
+    /// vlastnost níže by ho jinak zastínila.
+    /// </summary>
+    public IReadOnlyList<MoznostZobrazeni> MoznostiZobrazeni { get; } =
+    [
+        new(Data.Domain.ZobrazeniNepracovnichDnu.Cara, "Spojovací čára"),
+        new(Data.Domain.ZobrazeniNepracovnichDnu.Srafa, "Bílé pruhy"),
+        new(Data.Domain.ZobrazeniNepracovnichDnu.Obrys, "Jen obrys"),
+    ];
 
     public bool Pondeli { get => _pondeli; set => NastavDen(ref _pondeli, value); }
 
@@ -93,11 +105,30 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
         set => SetProperty(ref _automatickeRazeni, value);
     }
 
-    public bool SrafovatNepracovniDny
+    public MoznostZobrazeni ZobrazeniNepracovnichDnu
     {
-        get => _srafovatNepracovniDny;
-        set => SetProperty(ref _srafovatNepracovniDny, value);
+        get => _zobrazeniNepracovnichDnu;
+        set
+        {
+            if (SetProperty(ref _zobrazeniNepracovnichDnu, value))
+            {
+                OnPropertyChanged(nameof(PopisZobrazeni));
+            }
+        }
     }
+
+    /// <summary>Vysvětlení k právě vybrané možnosti.</summary>
+    public string PopisZobrazeni => _zobrazeniNepracovnichDnu.Hodnota switch
+    {
+        Data.Domain.ZobrazeniNepracovnichDnu.Cara =>
+            "Pruh se přeruší a přes víkendy a svátky vede spojovací čára. "
+            + "Vypadá to stejně jako zakázka rozdělená na úseky.",
+
+        Data.Domain.ZobrazeniNepracovnichDnu.Srafa =>
+            "Pruh drží plnou barvu a přes víkendy a svátky jdou bílé pruhy.",
+
+        _ => "Výplň se ve víkendech a svátcích vynechá a zůstane jen obrys pruhu.",
+    };
 
     public string HodinDenneText
     {
@@ -142,7 +173,7 @@ public class NastaveniViewModel : ObservableObject, IDataErrorInfo
             KonecPrace = konec,
             ZohlednitSvatky = _zohlednitSvatky,
             AutomatickeRazeni = _automatickeRazeni,
-            SrafovatNepracovniDny = _srafovatNepracovniDny,
+            ZobrazeniNepracovnichDnu = _zobrazeniNepracovnichDnu.Hodnota,
         };
     }
 

@@ -68,11 +68,13 @@
                    TextWrapping="Wrap"
                    Margin="0,0,0,18" />
 
-        <TextBlock Text="Zobrazení nepracovních dnů" Style="{StaticResource Nadpis}" />
-        <CheckBox Content="Šrafovat víkendy a svátky v pruhu zakázky"
-                  IsChecked="{Binding SrafovatNepracovniDny}"
+        <TextBlock Text="Víkendy a svátky v pruhu zakázky" Style="{StaticResource Nadpis}" />
+        <ComboBox ItemsSource="{Binding MoznostiZobrazeni}"
+                  SelectedItem="{Binding ZobrazeniNepracovnichDnu}"
+                  DisplayMemberPath="Popis"
+                  Padding="6,4"
                   Margin="0,0,0,6" />
-        <TextBlock Text="Když je vypnuté, výplň se v těch dnech vynechá a zůstane jen obrys pruhu."
+        <TextBlock Text="{Binding PopisZobrazeni}"
                    Foreground="#8A94A3"
                    FontSize="11"
                    TextWrapping="Wrap"

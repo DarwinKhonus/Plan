@@ -629,7 +629,15 @@ public class CasovaOsa : FrameworkElement
                     new Rect(0, VyskaHlavicky + (radek * VyskaRadku), sirkaOsy, VyskaRadku));
             }
 
-            VykresliSpojniceUseku(dc, zakazka, radek);
+            // Popisek se připraví dopředu, aby se kolem něj daly přerušit spojnice —
+            // jinak by čára k milníku mimo termín vedla přes název a přeškrtla ho.
+            var prvniUsek = zakazka.Useky.OrderBy(u => u.DatumOd).FirstOrDefault();
+            RozvrzeniPopisku? popisek = prvniUsek is null
+                ? null
+                : PripravPopisek(zakazka, ObdelnikUseku(prvniUsek, radek));
+
+            VykresliSpojniceUseku(dc, zakazka, radek, popisek?.Oblast);
+            VykresliSpojniceKMilnikum(dc, zakazka, radek, popisek?.Oblast);
 
             var vypln = zakazka.MaKolizi ? StetecPruhKolize : StetecPruh;
             var pero = jeVybrana
@@ -648,31 +656,43 @@ public class CasovaOsa : FrameworkElement
                 }
 
                 var pracovniUseky = PracovniPodUseky(usek);
+                var zobrazeni = Kalendar?.Nastaveni.ZobrazeniNepracovnichDnu
+                    ?? ZobrazeniNepracovnichDnu.Cara;
 
-                if (Kalendar?.Nastaveni.SrafovatNepracovniDny != false)
+                switch (zobrazeni)
                 {
-                    // Plná výplň a nad nepracovními dny šrafování. Pruh drží tvar
-                    // a přesto je z něj vidět, kde se nepracuje.
-                    dc.DrawRoundedRectangle(vypln, null, obdelnik, 3, 3);
-                    VykresliSrafovaniNepracovnich(dc, usek, obdelnik);
-                }
-                else
-                {
-                    // Výplň jen v pracovních dnech; nad víkendem a svátkem zůstane
-                    // jen „skořápka“ a prosvítá jí podbarvení osy.
-                    VykresliVyplnUseku(dc, obdelnik, vypln, pracovniUseky);
-                }
+                    case ZobrazeniNepracovnichDnu.Cara:
+                        // Pruh se přeruší a přes nepracovní dny vede spojovací čára,
+                        // stejně jako mezi úseky rozdělené zakázky.
+                        VykresliPruhSPrerusenim(dc, obdelnik, vypln, pero, pracovniUseky, radek);
+                        break;
 
-                dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
+                    case ZobrazeniNepracovnichDnu.Srafa:
+                        // Plná výplň a nad nepracovními dny bílé pruhy. Pruh drží tvar
+                        // a přesto je z něj vidět, kde se nepracuje.
+                        dc.DrawRoundedRectangle(vypln, null, obdelnik, 3, 3);
+                        VykresliSrafovaniNepracovnich(dc, usek, obdelnik);
+                        dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
+                        break;
+
+                    default:
+                        // Výplň jen v pracovních dnech; nad víkendem a svátkem zůstane
+                        // jen „skořápka“ a prosvítá jí podbarvení osy.
+                        VykresliVyplnUseku(dc, obdelnik, vypln, pracovniUseky);
+                        dc.DrawRoundedRectangle(null, pero, obdelnik, 3, 3);
+                        break;
+                }
 
                 obdelnikProPopisek ??= obdelnik;
             }
 
             // Název leží mimo pruh, takže si s milníky nelezou do cesty; milníky se proto
             // kreslí až nad ním a nikdy je nic nepřekryje.
-            if (obdelnikProPopisek is { } kam)
+            _ = obdelnikProPopisek;
+
+            if (popisek is { } p)
             {
-                VykresliPopisek(dc, zakazka, kam);
+                dc.DrawText(p.Text, p.Pozice);
             }
 
             VykresliMilniky(dc, zakazka, radek);
@@ -714,6 +734,61 @@ public class CasovaOsa : FrameworkElement
         }
 
         return vysledek;
+    }
+
+    /// <summary>
+    /// Vykreslí úsek jako samostatné pruhy přes pracovní dny a přes nepracovní dny mezi
+    /// nimi protáhne spojovací čáru.
+    /// </summary>
+    /// <remarks>
+    /// Vypadá to stejně jako zakázka rozdělená na úseky. To je vědomý ústupek — kdo tuhle
+    /// volbu zapne, mění pauzu za víkend za lépe čitelný pruh a rozdíl mezi obojím ztrácí.
+    /// </remarks>
+    private void VykresliPruhSPrerusenim(
+        DrawingContext dc,
+        Rect obdelnik,
+        Brush vypln,
+        Pen pero,
+        List<Rozsah> pracovniUseky,
+        int radek)
+    {
+        var stredRadku = VyskaHlavicky + (radek * VyskaRadku) + (VyskaRadku / 2);
+
+        for (var i = 0; i < pracovniUseky.Count; i++)
+        {
+            var levy = XoveProDen(pracovniUseky[i].Od);
+            var pravy = XoveProDen(pracovniUseky[i].Do) + SirkaDne;
+            dc.DrawRoundedRectangle(
+                vypln, pero, new Rect(levy, obdelnik.Y, pravy - levy, obdelnik.Height), 3, 3);
+
+            if (i + 1 < pracovniUseky.Count)
+            {
+                var dalsiLevy = XoveProDen(pracovniUseky[i + 1].Od);
+                dc.DrawLine(PeroSpojnice, new Point(pravy, stredRadku), new Point(dalsiLevy, stredRadku));
+            }
+        }
+
+        // Úsek začínající nebo končící nepracovním dnem: čára dotáhne pruh k jeho okraji,
+        // aby bylo vidět, kam termín skutečně sahá.
+        if (pracovniUseky.Count > 0)
+        {
+            var prvniLevy = XoveProDen(pracovniUseky[0].Od);
+            if (prvniLevy > obdelnik.X)
+            {
+                dc.DrawLine(PeroSpojnice, new Point(obdelnik.X, stredRadku), new Point(prvniLevy, stredRadku));
+            }
+
+            var posledniPravy = XoveProDen(pracovniUseky[^1].Do) + SirkaDne;
+            if (posledniPravy < obdelnik.Right)
+            {
+                dc.DrawLine(PeroSpojnice, new Point(posledniPravy, stredRadku), new Point(obdelnik.Right, stredRadku));
+            }
+        }
+        else
+        {
+            // Úsek celý v nepracovních dnech — zbývá jen čára přes celou jeho délku.
+            dc.DrawLine(PeroSpojnice, new Point(obdelnik.X, stredRadku), new Point(obdelnik.Right, stredRadku));
+        }
     }
 
     /// <summary>
@@ -776,7 +851,7 @@ public class CasovaOsa : FrameworkElement
     /// a s milníkem si vzájemně lezly do cesty, ať se kreslilo v jakémkoli pořadí.
     /// Mimo pruh je tmavý text na světlém podkladu a milníky zůstávají volné.
     /// </remarks>
-    private void VykresliPopisek(DrawingContext dc, ZakazkaViewModel zakazka, Rect obdelnik)
+    private RozvrzeniPopisku PripravPopisek(ZakazkaViewModel zakazka, Rect obdelnik)
     {
         const double Mezera = 6;
 
@@ -795,8 +870,7 @@ public class CasovaOsa : FrameworkElement
         var pred = obdelnik.X - Mezera - text.Width;
         if (pred >= levyOkrajOkna)
         {
-            dc.DrawText(text, new Point(pred, y));
-            return;
+            return Rozvrzeni(text, new Point(pred, y));
         }
 
         // Nevejde se to vlevo (zakázka začíná u kraje osy nebo je odscrollovaná),
@@ -804,8 +878,7 @@ public class CasovaOsa : FrameworkElement
         var za = obdelnik.Right + Mezera;
         if (za + text.Width <= pravyOkrajOkna)
         {
-            dc.DrawText(text, new Point(za, y));
-            return;
+            return Rozvrzeni(text, new Point(za, y));
         }
 
         // Pruh zabírá celé okno — pak zbývá jen dovnitř, s podložkou pro kontrast.
@@ -815,21 +888,52 @@ public class CasovaOsa : FrameworkElement
         svetlyText.MaxLineCount = 1;
         svetlyText.Trimming = TextTrimming.CharacterEllipsis;
 
-        var podlozka = new Rect(
-            uvnitr.X - 3,
-            uvnitr.Y - 1,
-            Math.Min(svetlyText.Width, svetlyText.MaxTextWidth) + 6,
-            svetlyText.Height + 2);
+        return Rozvrzeni(svetlyText, uvnitr);
 
-        dc.DrawRoundedRectangle(StetecPodlozkaPopisku, null, podlozka, 2, 2);
-        dc.DrawText(svetlyText, uvnitr);
+        static RozvrzeniPopisku Rozvrzeni(FormattedText text, Point pozice) => new(
+            text,
+            pozice,
+            new Rect(pozice.X - 3, pozice.Y, text.Width + 6, text.Height));
+    }
+
+    /// <summary>Kde a čím se vykreslí název zakázky, včetně místa, které zabírá.</summary>
+    private readonly record struct RozvrzeniPopisku(FormattedText Text, Point Pozice, Rect Oblast);
+
+    /// <summary>
+    /// Vodorovná spojnice, která se přeruší tam, kde leží název zakázky — jinak by ho
+    /// přeškrtla.
+    /// </summary>
+    private static void VykresliSpojnici(DrawingContext dc, double y, double x1, double x2, Rect? vynechat)
+    {
+        if (x2 <= x1)
+        {
+            return;
+        }
+
+        if (vynechat is not { } mezera || y < mezera.Top || y > mezera.Bottom
+            || mezera.Right <= x1 || mezera.Left >= x2)
+        {
+            dc.DrawLine(PeroSpojnice, new Point(x1, y), new Point(x2, y));
+            return;
+        }
+
+        if (mezera.Left > x1)
+        {
+            dc.DrawLine(PeroSpojnice, new Point(x1, y), new Point(mezera.Left, y));
+        }
+
+        if (mezera.Right < x2)
+        {
+            dc.DrawLine(PeroSpojnice, new Point(mezera.Right, y), new Point(x2, y));
+        }
     }
 
     /// <summary>
     /// Tenká linka přes pauzy mezi úseky, aby bylo poznat, že části patří jedné zakázce
     /// a nejde o dvě různé.
     /// </summary>
-    private void VykresliSpojniceUseku(DrawingContext dc, ZakazkaViewModel zakazka, int radek)
+    private void VykresliSpojniceUseku(
+        DrawingContext dc, ZakazkaViewModel zakazka, int radek, Rect? oblastPopisku)
     {
         if (zakazka.Useky.Count < 2)
         {
@@ -844,10 +948,41 @@ public class CasovaOsa : FrameworkElement
             var konecPredchoziho = ObdelnikUseku(serazene[i], radek).Right;
             var zacatekDalsiho = ObdelnikUseku(serazene[i + 1], radek).Left;
 
-            if (zacatekDalsiho > konecPredchoziho)
-            {
-                dc.DrawLine(PeroSpojnice, new Point(konecPredchoziho, y), new Point(zacatekDalsiho, y));
-            }
+            VykresliSpojnici(dc, y, konecPredchoziho, zacatekDalsiho, oblastPopisku);
+        }
+    }
+
+    /// <summary>
+    /// Dotáhne čáru k milníkům, které leží mimo termín zakázky. Bez ní kosočtverec visel
+    /// vedle barevné oblasti a nebylo poznat, ke které zakázce patří.
+    /// </summary>
+    /// <remarks>
+    /// Kreslí se jen vně termínu, aby to nezasahovalo do toho, jak se uvnitř pruhu
+    /// zobrazují nepracovní dny. Milníky ležící mezi krajním milníkem a termínem leží
+    /// na téže čáře, takže je propojená i řada milníků za sebou.
+    /// </remarks>
+    private void VykresliSpojniceKMilnikum(
+        DrawingContext dc, ZakazkaViewModel zakazka, int radek, Rect? oblastPopisku)
+    {
+        if (zakazka.Milniky.Count == 0 || zakazka.Useky.Count == 0)
+        {
+            return;
+        }
+
+        var y = VyskaHlavicky + (radek * VyskaRadku) + (VyskaRadku / 2);
+        var zacatekTerminu = XoveProDen(zakazka.DatumOd);
+        var konecTerminu = XoveProDen(zakazka.DatumDo) + SirkaDne;
+
+        var nejdrivejsi = StredMilniku(zakazka.Milniky.MinBy(m => m.Datum)!, radek).X;
+        if (nejdrivejsi < zacatekTerminu)
+        {
+            VykresliSpojnici(dc, y, nejdrivejsi, zacatekTerminu, oblastPopisku);
+        }
+
+        var nejpozdejsi = StredMilniku(zakazka.Milniky.MaxBy(m => m.Datum)!, radek).X;
+        if (nejpozdejsi > konecTerminu)
+        {
+            VykresliSpojnici(dc, y, konecTerminu, nejpozdejsi, oblastPopisku);
         }
     }
 

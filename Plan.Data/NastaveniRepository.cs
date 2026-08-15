@@ -17,6 +17,9 @@ public class NastaveniRepository
     private const string KlicKonecPrace = "KonecPrace";
     private const string KlicZohlednitSvatky = "ZohlednitSvatky";
     private const string KlicAutomatickeRazeni = "AutomatickeRazeni";
+    private const string KlicZobrazeniNepracovnichDnu = "ZobrazeniNepracovnichDnu";
+
+    /// <summary>Starší ano/ne volba šrafování. Čte se jen kvůli zachování nastavení.</summary>
     private const string KlicSrafovatNepracovniDny = "SrafovatNepracovniDny";
 
     private readonly PlanDbFactory _factory;
@@ -67,10 +70,19 @@ public class NastaveniRepository
             nastaveni.AutomatickeRazeni = razeniParsed;
         }
 
-        if (zaznamy.TryGetValue(KlicSrafovatNepracovniDny, out var srafovani)
+        if (zaznamy.TryGetValue(KlicZobrazeniNepracovnichDnu, out var zobrazeni)
+            && Enum.TryParse<ZobrazeniNepracovnichDnu>(zobrazeni, out var zobrazeniParsed))
+        {
+            nastaveni.ZobrazeniNepracovnichDnu = zobrazeniParsed;
+        }
+        else if (zaznamy.TryGetValue(KlicSrafovatNepracovniDny, out var srafovani)
             && bool.TryParse(srafovani, out var srafovaniParsed))
         {
-            nastaveni.SrafovatNepracovniDny = srafovaniParsed;
+            // Databáze z dřívější verze měla jen ano/ne pro šrafování — přeloží se
+            // na odpovídající volbu, aby uživatel o své nastavení nepřišel.
+            nastaveni.ZobrazeniNepracovnichDnu = srafovaniParsed
+                ? ZobrazeniNepracovnichDnu.Srafa
+                : ZobrazeniNepracovnichDnu.Obrys;
         }
 
         return nastaveni;
@@ -90,8 +102,8 @@ public class NastaveniRepository
             nastaveni.ZohlednitSvatky.ToString(CultureInfo.InvariantCulture));
         await NastavAsync(db, KlicAutomatickeRazeni,
             nastaveni.AutomatickeRazeni.ToString(CultureInfo.InvariantCulture));
-        await NastavAsync(db, KlicSrafovatNepracovniDny,
-            nastaveni.SrafovatNepracovniDny.ToString(CultureInfo.InvariantCulture));
+        await NastavAsync(db, KlicZobrazeniNepracovnichDnu,
+            nastaveni.ZobrazeniNepracovnichDnu.ToString());
 
         await db.SaveChangesAsync();
     }
