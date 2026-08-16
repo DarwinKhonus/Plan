@@ -44,9 +44,9 @@ public class CasovaOsa : FrameworkElement
     private static readonly Pen PeroPruhKolize = VytvorPero("#922B21", 1);
     private static readonly Pen PeroVyber = VytvorPero("#1B3E5E", 2.5);
 
-    // Šrafování nepracovních dnů v pruhu: silné bílé pruhy. Mírně průhledné, aby pod nimi
+    // Šrafování nepracovních dnů v pruhu: jemné bílé pruhy. Mírně průhledné, aby pod nimi
     // barva pruhu ještě prosvítala a šrafování fungovalo nad modrou i červenou.
-    private static readonly Brush StetecSrafovani = VytvorSrafovani("#E6FFFFFF", 4, 10);
+    private static readonly Brush StetecSrafovani = VytvorSrafovani("#E6FFFFFF", 2, 6);
 
     // Název zakázky mimo pruh: tmavý text na podkladu osy.
     private static readonly Brush StetecPopisku = Vytvor("#2C3542");
@@ -1494,9 +1494,20 @@ public class CasovaOsa : FrameworkElement
     /// Šikmé šrafování jako opakovaná dlaždice. Čára jde z rohu do rohu, takže na hranici
     /// dlaždic plynule pokračuje a vznikne souvislý pruh.
     /// </summary>
+    /// <remarks>
+    /// Hranaté konce pera přetahují čáru přes okraj dlaždice, aby na sebe sousedi navázali
+    /// bez zubu v rohu. Viewbox se proto musí nastavit absolutně — dopočítal by se z hranic
+    /// kresby včetně toho přesahu a šrafování by vyšlo tenčí, než kolik říká
+    /// <paramref name="tloustka"/>.
+    /// </remarks>
     private static Brush VytvorSrafovani(string hex, double tloustka, double krok)
     {
-        var pero = new Pen(Vytvor(hex), tloustka);
+        var pero = new Pen(Vytvor(hex), tloustka)
+        {
+            StartLineCap = PenLineCap.Square,
+            EndLineCap = PenLineCap.Square,
+        };
+
         pero.Freeze();
 
         var cara = new LineGeometry(new Point(0, krok), new Point(krok, 0));
@@ -1508,6 +1519,8 @@ public class CasovaOsa : FrameworkElement
         var stetec = new DrawingBrush(kresba)
         {
             TileMode = TileMode.Tile,
+            Viewbox = new Rect(0, 0, krok, krok),
+            ViewboxUnits = BrushMappingMode.Absolute,
             Viewport = new Rect(0, 0, krok, krok),
 
             // Absolutní jednotky, aby hustota šrafování nezávisela na velikosti pruhu.
